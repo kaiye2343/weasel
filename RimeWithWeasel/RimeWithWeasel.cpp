@@ -906,6 +906,11 @@ bool RimeWithWeaselHandler::_Respond(WeaselSessionId ipc_id, EatLine eat) {
 
   RIME_STRUCT(RimeContext, ctx);
   if (rime_api->get_context(session_id, &ctx)) {
+    bool has_candidates = ctx.menu.num_candidates > 0;
+    CandidateInfo cinfo;
+    if (has_candidates) {
+      _GetCandidateInfo(cinfo, ctx);
+    }
     if (is_composing) {
       actions.insert("ctx");
       switch (session_status.style.preedit_type) {
@@ -943,8 +948,6 @@ bool RimeWithWeaselHandler::_Respond(WeaselSessionId ipc_id, EatLine eat) {
           }
           break;
         case UIStyle::PREVIEW_ALL:
-          CandidateInfo cinfo;
-          _GetCandidateInfo(cinfo, ctx);
           std::string topush = std::string("ctx.preedit=") +
                                escape_string<char>(ctx.composition.preedit) +
                                "  [";
@@ -984,11 +987,9 @@ bool RimeWithWeaselHandler::_Respond(WeaselSessionId ipc_id, EatLine eat) {
           break;
       }
     }
-    if (ctx.menu.num_candidates) {
-      CandidateInfo cinfo;
+    if (has_candidates) {
       std::wstringstream ss;
       boost::archive::text_woarchive oa(ss);
-      _GetCandidateInfo(cinfo, ctx);
 
       oa << cinfo;
 
