@@ -9,6 +9,7 @@
 #include <ShellScalingApi.h>
 #include <VersionHelpers.hpp>
 #include <WeaselIPCData.h>
+#include <algorithm>
 
 #include "VerticalLayout.h"
 #include "HorizontalLayout.h"
@@ -229,7 +230,7 @@ void WeaselPanel::Refresh() {
   const size_t previousResources = m_skin_revision;
   bool should_show_icon =
       (m_status.ascii_mode || !m_status.composing || !m_ctx.aux.empty());
-  m_candidateCount = (BYTE)m_ctx.cinfo.candies.size();
+  m_candidateCount = static_cast<BYTE>((std::min)(m_ctx.cinfo.candies.size(), size_t(MAX_CANDIDATES_COUNT)));
   // check if to hide candidates window
   // show tips status, two kind of situation: 1) only aux strings, don't care
   // icon status; 2)only icon(ascii mode switching)
