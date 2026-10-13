@@ -56,3 +56,7 @@ arm64x_wrapper/*.dll
 arm64x_wrapper/*.ime
 arm64x_wrapper/*.lib
 arm64x_wrapper/*.exp
+skin_geometry_test.exe
+skin_geometry_test.obj
+.codegraph/
+.tools/

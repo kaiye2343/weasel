@@ -102,6 +102,13 @@ class WeaselPanel
                 IDWriteTextFormat1* const pTextFormat = NULL);
 
   void _LayerUpdate(const CRect& rc, CDCHandle dc);
+  void _UpdateSkinGeometry();
+  void _ReleaseSkinImages();
+  CPoint m_skin_origin = CPoint(0, 0);
+  CSize m_skin_size = CSize(0, 0);
+  std::vector<SkinImage> m_skin_config;
+  std::vector<std::unique_ptr<Gdiplus::Bitmap>> m_skin_bitmaps;
+  std::vector<CRect> m_skin_rects;
 
   weasel::Layout* m_layout;
   // 候选窗背景图：按路径缓存。本类每个输入线程一个实例，

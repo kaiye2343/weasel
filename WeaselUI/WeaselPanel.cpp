@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "WeaselPanel.h"
+#include "SkinGeometry.h"
 
 #include <utility>
 #include <ShellScalingApi.h>
@@ -91,6 +92,7 @@ WeaselPanel::WeaselPanel(weasel::UI& ui)
 }
 
 WeaselPanel::~WeaselPanel() {
+  _ReleaseSkinImages();
   // 位图要在 Gdiplus 关闭之前释放
   delete m_layout;
   m_layout = NULL;
@@ -102,10 +104,62 @@ WeaselPanel::~WeaselPanel() {
 
 void WeaselPanel::_ResizeWindow() {
   CDCHandle dc = GetDC();
-  CSize m_size = m_layout->GetContentSize();
+  _UpdateSkinGeometry();
+  CSize m_size = m_skin_size;
   SetWindowPos(NULL, 0, 0, m_size.cx, m_size.cy,
                SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOREDRAW);
   ReleaseDC(dc);
+}
+
+void WeaselPanel::_ReleaseSkinImages() {
+  m_skin_bitmaps.clear();
+  m_skin_config.clear();
+  m_skin_rects.clear();
+}
+
+void WeaselPanel::_UpdateSkinGeometry() {
+  const CSize base = m_layout->GetContentSize();
+  m_skin_origin = CPoint(0, 0);
+  m_skin_size = base;
+  m_skin_rects.clear();
+  if (hide_candidates || !m_status.composing || !m_candidateCount ||
+      m_style.layout_type != UIStyle::LAYOUT_HORIZONTAL)
+    return;
+
+  if (m_skin_config != m_style.skin_images) {
+    _ReleaseSkinImages();
+    m_skin_config = m_style.skin_images;
+    for (const auto& image : m_skin_config) {
+      std::unique_ptr<Gdiplus::Bitmap> bitmap(
+          Gdiplus::Bitmap::FromFile(image.path.c_str()));
+      if (bitmap && bitmap->GetLastStatus() == Gdiplus::Ok &&
+          bitmap->GetWidth() <= 2048 && bitmap->GetHeight() <= 2048 &&
+          bitmap->GetWidth() && bitmap->GetHeight()) {
+        // Clone and close the source file so skins remain editable on disk.
+        bitmap.reset(bitmap->Clone(0, 0, (INT)bitmap->GetWidth(),
+                                   (INT)bitmap->GetHeight(),
+                                   PixelFormat32bppPARGB));
+      } else {
+        bitmap.reset();
+      }
+      m_skin_bitmaps.push_back(std::move(bitmap));
+    }
+  }
+  SkinRect bounds{0, 0, base.cx, base.cy};
+  for (size_t i = 0; i < m_skin_config.size(); ++i) {
+    const auto& image = m_skin_config[i];
+    SkinRect rect = PlaceSkinImage(
+        base.cx, base.cy,
+        image.anchor == L"top_right" || image.anchor == L"bottom_right",
+        image.anchor == L"bottom_left" || image.anchor == L"bottom_right",
+        DPI_SCALE(image.x), DPI_SCALE(image.y), DPI_SCALE(image.width),
+        DPI_SCALE(image.height));
+    m_skin_rects.push_back(CRect(rect.left, rect.top, rect.right, rect.bottom));
+    if (m_skin_bitmaps[i])
+      bounds = ExpandSkinCanvas(bounds, rect);
+  }
+  m_skin_origin = CPoint(-bounds.left, -bounds.top);
+  m_skin_size = CSize(bounds.right - bounds.left, bounds.bottom - bounds.top);
 }
 
 void WeaselPanel::_CreateLayout() {
@@ -226,6 +280,7 @@ void WeaselPanel::_CaptureRect(CRect& rect) {
   GetWindowRect(&rc);
   POINT WindowPosAtScreen = {rc.left, rc.top};
   rect.OffsetRect(WindowPosAtScreen);
+  rect.OffsetRect(m_skin_origin);
   // capture input window
   if (OpenClipboard()) {
     HBITMAP bmp = CopyDCToBitmap(ScreenDC, LPRECT(rect));
@@ -267,8 +322,8 @@ LRESULT WeaselPanel::OnLeftClickedUp(UINT uMsg,
     return 0;
   }
   CPoint point;
-  point.x = GET_X_LPARAM(lParam);
-  point.y = GET_Y_LPARAM(lParam);
+  point.x = GET_X_LPARAM(lParam) - m_skin_origin.x;
+  point.y = GET_Y_LPARAM(lParam) - m_skin_origin.y;
 
   ::KillTimer(m_hWnd, AUTOREV_TIMER);
   bar_scale_ = 1.0;
@@ -305,8 +360,8 @@ LRESULT WeaselPanel::OnLeftClickedDown(UINT uMsg,
     return 0;
   }
   CPoint point;
-  point.x = GET_X_LPARAM(lParam);
-  point.y = GET_Y_LPARAM(lParam);
+  point.x = GET_X_LPARAM(lParam) - m_skin_origin.x;
+  point.y = GET_Y_LPARAM(lParam) - m_skin_origin.y;
 
   // capture
   if (m_style.click_to_capture) {
@@ -440,8 +495,8 @@ LRESULT WeaselPanel::OnMouseMove(UINT uMsg,
   bHandled = true;
   m_mouse_entry = true;
   CPoint point;
-  point.x = GET_X_LPARAM(lParam);
-  point.y = GET_Y_LPARAM(lParam);
+  point.x = GET_X_LPARAM(lParam) - m_skin_origin.x;
+  point.y = GET_Y_LPARAM(lParam) - m_skin_origin.y;
 
   for (size_t i = 0; i < m_candidateCount && i < MAX_CANDIDATES_COUNT; ++i) {
     CRect rect = m_layout->GetCandidateRect((int)i);
@@ -625,6 +680,17 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
     } else if (type !=
                BackType::TEXT)  // hilited_candidate_border / candidate_border
       g_back.DrawPath(&gPenBorder, hiliteBackPath);
+  }
+  if (type == BackType::BACKGROUND && !m_skin_rects.empty()) {
+    CRect inner = rc;
+    inner.DeflateRect(DPI_SCALE(4), DPI_SCALE(4));
+    if (inner.Width() > 0 && inner.Height() > 0) {
+      GraphicsRoundRectPath innerPath(inner, DPI_SCALE(m_style.round_corner));
+      Gdiplus::Pen stitch(GDPCOLOR_FROM_COLORREF(m_style.border_color),
+                          (Gdiplus::REAL)DPI_SCALE(1));
+      stitch.SetDashStyle(Gdiplus::DashStyleDash);
+      g_back.DrawPath(&stitch, &innerPath);
+    }
   }
   // free memory
   delete hiliteBackPath;
@@ -1038,11 +1104,28 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
   // turn off WS_EX_TRANSPARENT, for better resp performance
   ModifyStyleEx(WS_EX_TRANSPARENT, WS_EX_LAYERED);
   GetClientRect(&rcw);
+  const CSize base_size = m_layout->GetContentSize();
+  rcw = CRect(0, 0, base_size.cx, base_size.cy);
   // prepare memDC
   CDCHandle hdc = ::GetDC(m_hWnd);
   CDCHandle memDC = ::CreateCompatibleDC(hdc);
-  HBITMAP memBitmap = ::CreateCompatibleBitmap(hdc, rcw.Width(), rcw.Height());
-  ::SelectObject(memDC, memBitmap);
+  BITMAPINFO info = {};
+  info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  info.bmiHeader.biWidth = rcw.Width();
+  info.bmiHeader.biHeight = -rcw.Height();
+  info.bmiHeader.biPlanes = 1;
+  info.bmiHeader.biBitCount = 32;
+  info.bmiHeader.biCompression = BI_RGB;
+  void* pixels = NULL;
+  HBITMAP memBitmap =
+      ::CreateDIBSection(hdc, &info, DIB_RGB_COLORS, &pixels, NULL, 0);
+  if (!memBitmap) {
+    ::DeleteDC(memDC);
+    ReleaseDC(hdc);
+    return;
+  }
+  memset(pixels, 0, (size_t)rcw.Width() * rcw.Height() * 4);
+  HGDIOBJ oldBitmap = ::SelectObject(memDC, memBitmap);
   ReleaseDC(hdc);
   bool drawn = false;
   if (!hide_candidates) {
@@ -1162,6 +1245,7 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
   _LayerUpdate(rcw, memDC);
 
   // clean objs
+  ::SelectObject(memDC, oldBitmap);
   ::DeleteDC(memDC);
   ::DeleteObject(memBitmap);
 }
@@ -1180,11 +1264,65 @@ void WeaselPanel::_LayerUpdate(const CRect& rc, CDCHandle dc) {
   GetWindowRect(&rect);
   POINT WindowPosAtScreen = {rect.left, rect.top};
   POINT PointOriginal = {0, 0};
-  SIZE sz = {rc.Width(), rc.Height()};
+  SIZE sz = {m_skin_size.cx, m_skin_size.cy};
+
+  HDC skinDC = NULL;
+  HBITMAP skinBitmap = NULL;
+  HGDIOBJ oldBitmap = NULL;
+  if (!m_skin_rects.empty()) {
+    BITMAPINFO info = {};
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = sz.cx;
+    info.bmiHeader.biHeight = -sz.cy;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    void* pixels = NULL;
+    skinBitmap =
+        CreateDIBSection(ScreenDC, &info, DIB_RGB_COLORS, &pixels, NULL, 0);
+    if (!skinBitmap) {
+      ReleaseDC(ScreenDC);
+      return;
+    }
+    memset(pixels, 0, (size_t)sz.cx * sz.cy * 4);
+    skinDC = CreateCompatibleDC(ScreenDC);
+    oldBitmap = SelectObject(skinDC, skinBitmap);
+    // Copy the candidate pixels, including premultiplied alpha, unchanged.
+    BitBlt(skinDC, m_skin_origin.x, m_skin_origin.y, rc.Width(), rc.Height(),
+           dc, 0, 0, SRCCOPY);
+    GdiFlush();
+    Gdiplus::Bitmap canvas(sz.cx, sz.cy, sz.cx * 4, PixelFormat32bppPARGB,
+                           static_cast<BYTE*>(pixels));
+    Gdiplus::Graphics graphics(&canvas);
+    graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+    graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+    for (size_t i = 0; i < m_skin_rects.size(); ++i) {
+      if (!m_skin_bitmaps[i])
+        continue;
+      CRect target = m_skin_rects[i];
+      target.OffsetRect(m_skin_origin);
+      auto* image = m_skin_bitmaps[i].get();
+      const float scale =
+          (std::min)((float)target.Width() / image->GetWidth(),
+                     (float)target.Height() / image->GetHeight());
+      const int width = (int)(image->GetWidth() * scale);
+      const int height = (int)(image->GetHeight() * scale);
+      graphics.DrawImage(m_skin_bitmaps[i].get(),
+                         target.left + (target.Width() - width) / 2,
+                         target.bottom - height, width, height);
+    }
+    graphics.Flush(Gdiplus::FlushIntentionSync);
+    dc = skinDC;
+  }
 
   BLENDFUNCTION bf = {AC_SRC_OVER, 0, 0XFF, AC_SRC_ALPHA};
   UpdateLayeredWindow(m_hWnd, ScreenDC, &WindowPosAtScreen, &sz, dc,
                       &PointOriginal, RGB(0, 0, 0), &bf, ULW_ALPHA);
+  if (skinDC) {
+    SelectObject(skinDC, oldBitmap);
+    DeleteDC(skinDC);
+    DeleteObject(skinBitmap);
+  }
   ReleaseDC(ScreenDC);
 }
 
@@ -1203,6 +1341,7 @@ LRESULT WeaselPanel::OnDestroy(UINT uMsg,
                                LPARAM lParam,
                                BOOL& bHandled) {
   m_hoverIndex = -1;
+  _ReleaseSkinImages();
   m_sticky = false;
   delete m_layout;
   m_layout = NULL;
@@ -1275,8 +1414,8 @@ void WeaselPanel::_RepositionWindow(const bool& adj) {
   // keep panel visible
   rcWorkArea.right -= width;
   rcWorkArea.bottom -= height;
-  int x = m_inputPos.left;
-  int y = m_inputPos.bottom;
+  int x = m_inputPos.left - m_skin_origin.x;
+  int y = m_inputPos.bottom - m_skin_origin.y;
   if (DPI_SCALE(m_style.shadow_radius)) {
     x -= (DPI_SCALE(m_style.shadow_offset_x) >= 0 ||
           COLORTRANSPARENT(m_style.shadow_color))
@@ -1320,7 +1459,7 @@ void WeaselPanel::_RepositionWindow(const bool& adj) {
   if (y < rcWorkArea.top)
     y = rcWorkArea.top;  // over workarea top
   // memorize adjusted position (to avoid window bouncing on height change)
-  m_inputPos.bottom = y;
+  m_inputPos.bottom = y + m_skin_origin.y;
   SetWindowPos(HWND_TOPMOST, x, y, 0, 0,
                SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOREDRAW);
 }

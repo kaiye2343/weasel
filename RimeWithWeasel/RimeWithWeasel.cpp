@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include <logging.h>
 #include <RimeWithWeasel.h>
 #include <StringAlgorithm.hpp>
@@ -1137,6 +1137,38 @@ static void _UpdateUIStyle(RimeConfig* config, UI* ui, bool initialize) {
   // 背景图路径专用：保留原样，不做任何裁剪
   const std::function<void(std::wstring&)> _keepspace = [](std::wstring&) {};
   const std::function<void(int&)> _abs = [](int& value) { value = abs(value); };
+  RimeConfigIterator skin_iter;
+  if (initialize)
+    style.skin_images.clear();
+  if (rime_api->config_begin_list(&skin_iter, config, "style/skin/images")) {
+    style.skin_images.clear();
+    while (rime_api->config_next(&skin_iter)) {
+      if (style.skin_images.size() >= 8)
+        break;
+      SkinImage image;
+      const std::string prefix = std::string(skin_iter.path) + "/";
+      _RimeGetIntStr(config, (prefix + "path").c_str(), image.path, 0, 0,
+                     _keepspace);
+      _RimeGetIntStr(config, (prefix + "anchor").c_str(), image.anchor, 0, 0,
+                     _keepspace);
+      _RimeGetIntStr(config, (prefix + "x").c_str(), image.x);
+      _RimeGetIntStr(config, (prefix + "y").c_str(), image.y);
+      _RimeGetIntStr(config, (prefix + "width").c_str(), image.width);
+      _RimeGetIntStr(config, (prefix + "height").c_str(), image.height);
+      if (image.path.empty() || image.width <= 0 || image.height <= 0 ||
+          image.width > 512 || image.height > 512 || abs(image.x) > 512 ||
+          abs(image.y) > 512)
+        continue;
+      if (image.anchor != L"top_left" && image.anchor != L"top_right" &&
+          image.anchor != L"bottom_left" && image.anchor != L"bottom_right")
+        continue;
+      if (image.path.find(L':') == std::wstring::npos &&
+          image.path[0] != L'/' && image.path[0] != L'\\')
+        image.path = WeaselUserDataPath().wstring() + L"\\" + image.path;
+      style.skin_images.push_back(image);
+    }
+    rime_api->config_end(&skin_iter);
+  }
   // get font faces
   _RimeGetIntStr(config, "style/font_face", style.font_face, 0, 0, rmspace);
   std::wstring* const pFallbackFontFace = initialize ? &style.font_face : NULL;

@@ -1,187 +1,84 @@
-name: Commit CI
+name: Shorekeeper build
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - '*'
-    tags:
-      - '![0-9]+.*'
-    paths:
-      - '**/**'
-      - '!*.md'
-      - '!.gitignore'
+    branches: [shorekeeper]
   pull_request:
+    branches: [shorekeeper]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shorekeeper-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  lint:
-    runs-on: windows-2019
-    steps:
-      - name: Checkout last commit
-        uses: actions/checkout@v4
-      - name: Install llvm if necessary
-        shell: pwsh
-        run: |
-          $version = ""
-          if (Get-Command "clang-format" -ErrorAction SilentlyContinue){
-            $version = clang-format --version
-            $pat = ".*\s+(\d+\.\d+\.\d+)"
-            if ($version -match $pat) {
-              $version = $matches[1]
-            }
-          }
-          if ($version -ne "") {
-            Write-Host "clang-format version：$version"
-            if ([version]$version -ge [version]"18.1.6") {
-              Write-Host "clang-format OK"
-            } else {
-              Write-Host "clang-format vesion does not meet"
-              choco install llvm --version=18.1.6
-            }
-          } else {
-            Write-Host "clang-format not installed"
-            choco install llvm --version=18.1.6
-          }
-      - name: Code style lint
-        shell: bash
-        run: ./clang-format.sh -i
-
   build:
-    needs: lint
-    runs-on: windows-2019
+    runs-on: windows-2022
+    timeout-minutes: 60
     env:
       boost_version: 1.84.0
       BOOST_ROOT: ${{ github.workspace }}\deps\boost_1_84_0
     steps:
-
-      - name: Checkout last commit
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: recursive
           fetch-depth: 0
-
-      - name: Fetch all tags
-        run: git fetch --tags
-
-      - name: Configure build environment
-        shell: bash
-        run: |
-          cp env.vs2019.bat env.bat
-          echo git_ref_name="$(git describe --always)" >> $GITHUB_ENV
-
-      - name: Cache Boost
-        id: cache-boost
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.BOOST_ROOT }}
-          key: ${{ runner.os }}-boost-${{ env.boost_version }}
-
-      - name: Install Boost
-        if: steps.cache-boost.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          ./install_boost.bat
-          ./build.bat boost arm64
-
-      - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v2
-
-      - name: Get Rime files
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          .\get-rime.ps1 -use dev
-
-      - name: Build data
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          .\build.bat data
-
-      - name: Build Weasel
-        shell: pwsh
-        id: build_weasel
-        run: |
-          $ErrorActionPreference = 'Stop'
-          .\build.bat arm64 installer
-
-      - name: Compress Debug Symbols
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          output\7z.exe a -t7z "./output/archives/debug_symbols.7z" "output/*.pdb" -r
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: weasel-artifact-${{ env.git_ref_name }}
-          if-no-files-found: error
-          path: |
-            .\output\archives\weasel*.exe
-            .\output\archives\debug_symbols.7z
-
-  xbuild:
-    needs: lint
-    runs-on: windows-2019
-    env:
-      boost_version: 1.84.0
-      BOOST_ROOT: ${{ github.workspace }}\deps\boost_1_84_0
-    steps:
-
-      - name: Checkout last commit
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
-
-      - name: Fetch all tags
-        run: git fetch --tags
-
-      - name: Configure build environment
-        shell: bash
-        run: |
-          cp env.vs2019.bat env.bat
-          echo git_ref_name="$(git describe --always)" >> $GITHUB_ENV
-
-      - name: Cache Boost
-        id: cache-boost
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.BOOST_ROOT }}
-          key: ${{ runner.os }}-boost-${{ env.boost_version }}
-
-      - name: Install Boost
-        if: steps.cache-boost.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          ./install_boost.bat
-          ./build.bat boost arm64
-
-      # xmake 2.9.4 or later
-      - uses: xmake-io/github-action-setup-xmake@v1
-        with:
-          xmake-version: '2.9.4'
-          actions-cache-folder: '.xmake-cache'
-
+      - uses: microsoft/setup-msbuild@v2
       - uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Get Rime files
+      - name: Configure VS 2022
         shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          .\get-rime.ps1 -use dev
-
-
-      - name: Build data
-        run: |
-          $ErrorActionPreference = 'Stop'
-          .\build.bat data
-
-      - name: Build Weasel
-        id: build_weasel
+        run: Copy-Item env.vs2022.bat env.bat
+      - name: Test skin geometry
         shell: cmd
         run: |
-          .\xbuild.bat arm64 installer
-
+          cl /nologo /EHsc /W4 tests\skin_geometry_test.cpp /Fe:skin_geometry_test.exe
+          if errorlevel 1 exit /b 1
+          skin_geometry_test.exe
+          if errorlevel 1 exit /b 1
+      - name: Prepare installer tools
+        shell: pwsh
+        run: |
+          choco install nsis aria2 --no-progress -y
+          if ($LASTEXITCODE -ne 0) { throw 'Installer tools setup failed' }
+      - uses: actions/cache@v4
+        id: boost
+        with:
+          path: ${{ env.BOOST_ROOT }}
+          key: shorekeeper-windows2022-v143-boost-1.84.0-x86-x64
+      - name: Build Boost
+        if: steps.boost.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          call install_boost.bat
+          if errorlevel 1 exit /b 1
+      - name: Fetch pinned librime SDK
+        shell: pwsh
+        run: ./get-rime.ps1 -tag 1.13.1 -use dev
+      - name: Build dictionaries
+        shell: cmd
+        run: |
+          call build.bat data
+          if errorlevel 1 exit /b 1
+      - name: Build complete x64 and x86 package
+        shell: cmd
+        run: |
+          call build.bat installer
+          if errorlevel 1 exit /b 1
+      - name: Package skin samples and provenance
+        shell: pwsh
+        run: |
+          Copy-Item skins output/archives/skins -Recurse
+          Copy-Item docs/SHOREKEEPER.md output/archives/SHOREKEEPER.md
+          git rev-parse HEAD | Set-Content output/archives/commit.txt
+          Get-ChildItem output/archives -Filter '*.exe' | Get-FileHash -Algorithm SHA256 |
+            Format-Table Hash, Path -AutoSize | Out-String -Width 300 |
+            Set-Content output/archives/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shorekeeper-weasel-${{ github.sha }}
+          path: output/archives/
+          if-no-files-found: error
+          retention-days: 14

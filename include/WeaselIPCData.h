@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <string>
 #include <vector>
@@ -192,6 +192,21 @@ struct Config {
   bool inline_preedit;
 };
 
+// Images anchored to the candidate content, in device-independent pixels.
+struct SkinImage {
+  std::wstring path;
+  std::wstring anchor;
+  int x = 0, y = 0, width = 0, height = 0;
+  bool operator==(const SkinImage& other) const {
+    return path == other.path && anchor == other.anchor && x == other.x &&
+           y == other.y && width == other.width && height == other.height;
+  }
+  template <typename Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & path & anchor & x & y & width & height;
+  }
+};
+
 struct UIStyle {
   enum AntiAliasMode {
     DEFAULT = 0,
@@ -223,6 +238,7 @@ struct UIStyle {
   // 底图填充模式：0=stretch(默认，等同旧行为) 1=tile 2=center 3=fit
   // 只在 background_image 非空时起作用
   int background_fill_mode;
+  std::vector<SkinImage> skin_images;
   int font_point;
   int label_font_point;
   int comment_font_point;
@@ -380,7 +396,8 @@ struct UIStyle {
         comment_font_face != st.comment_font_face ||
         background_image != st.background_image ||
         background_fill_mode != st.background_fill_mode ||
-        hover_type != st.hover_type || font_point != st.font_point ||
+        skin_images != st.skin_images || hover_type != st.hover_type ||
+        font_point != st.font_point ||
         label_font_point != st.label_font_point ||
         comment_font_point != st.comment_font_point ||
         candidate_abbreviate_length != st.candidate_abbreviate_length ||
@@ -442,6 +459,7 @@ void serialize(Archive& ar, weasel::UIStyle& s, const unsigned int version) {
   ar & s.comment_font_face;
   ar & s.background_image;
   ar & s.background_fill_mode;
+  ar & s.skin_images;
   ar & s.hover_type;
   ar & s.font_point;
   ar & s.label_font_point;

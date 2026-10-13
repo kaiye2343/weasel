@@ -1,0 +1,45 @@
+patch:
+  style/horizontal: true
+  style/layout/type: horizontal
+  style/inline_preedit: false
+  style/font_point: 16
+  style/layout/margin_x: 16
+  style/layout/margin_y: 12
+  style/layout/border: 2
+  style/layout/round_corner: 8
+  style/layout/round_corner_ex: 12
+  style/layout/shadow_radius: 6
+  style/color_scheme: shorekeeper_native
+  preset_color_schemes/shorekeeper_native:
+    name: 守岸人 · 原生
+    author: Shorekeeper fork
+    back_color: 16776181
+    text_color: 4402972
+    candidate_text_color: 4402972
+    label_color: 8874062
+    comment_text_color: 10059617
+    border_color: 15313229
+    hilited_candidate_back_color: 16772572
+    hilited_candidate_text_color: 13138720
+    hilited_label_color: 13138720
+    hilited_comment_text_color: 12028745
+    shadow_color: 806234692
+  style/skin/images:
+  - path: skins/shorekeeper/shorekeeper-butterfly.png
+    anchor: bottom_right
+    x: -22
+    y: -200
+    width: 205
+    height: 232
+  - path: skins/shorekeeper/shorekeeper-wing-reference.png
+    anchor: top_left
+    x: -29
+    y: -52
+    width: 75
+    height: 62
+  - path: skins/shorekeeper/shorekeeper-wordmark.png
+    anchor: bottom_left
+    x: 4
+    y: -12
+    width: 160
+    height: 38
