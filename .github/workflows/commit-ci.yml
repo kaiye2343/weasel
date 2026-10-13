@@ -70,6 +70,11 @@ jobs:
       - name: Package skin samples and provenance
         shell: pwsh
         run: |
+          $installers = @(Get-ChildItem output/archives -Filter 'weasel*.exe')
+          if ($installers.Count -eq 0) { throw 'Build produced no installer' }
+          foreach ($file in @('output/WeaselServer.exe', 'output/WeaselDeployer.exe', 'output/weasel.dll', 'output/weaselx64.dll', 'output/Win32/WeaselServer.exe')) {
+            if (!(Test-Path -LiteralPath $file)) { throw "Missing component: $file" }
+          }
           Copy-Item skins output/archives/skins -Recurse
           Copy-Item docs/SHOREKEEPER.md output/archives/SHOREKEEPER.md
           git rev-parse HEAD | Set-Content output/archives/commit.txt

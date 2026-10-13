@@ -371,6 +371,8 @@ rem ---------------------------------------------------------------------------
 :error
 
 echo error building weasel...
+exit /b 1
 
 :end
 cd %WEASEL_ROOT%
+exit /b 0
