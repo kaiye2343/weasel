@@ -69,6 +69,7 @@ public sealed class RimeProfiles
                 staged.Add((file.Path, temp, previous)); File.WriteAllText(temp, file.Text, new UTF8Encoding(false));
             }
             SkinJson.WriteAtomic(Path.Combine(backup, "restore-index.json"), staged.Select(f => new { RelativePath = Path.GetRelativePath(Root, f.Path), Existed = f.Backup != null }));
+            SkinJson.WriteAtomic(Path.Combine(backup, "changes.json"), files.Select(f => new { File = Path.GetRelativePath(Root, f.Path), Before = File.Exists(f.Path) ? File.ReadAllText(f.Path) : "", After = f.Text }));
             foreach (var file in staged) { File.Move(file.Temp, file.Path, true); committed.Add((file.Path, file.Backup)); }
         }
         catch
@@ -90,48 +91,81 @@ public sealed class RimeProfiles
         throw new InvalidDataException("当前万象版本缺少开关：" + name);
     }
     public InputSettings Load(string id)
+        => LoadFiles(Schema(id), Custom(id), Path.Combine(Root, $"shortcuts_{id}.dict.yaml"));
+    public InputSettings LoadScheme(string schemaId)
     {
-        var patch = Map(Read(Custom(id)), "patch"); var schema = Read(Schema(id));
-        var result = new InputSettings { EnableCorrection = Scalar(patch, "translator/enable_correction") != "false" };
+        if (schemaId.StartsWith("wanxiang_")) return Load(schemaId[9..]);
+        if (schemaId != "wanxiang") throw new InvalidDataException("当前方案不支持万象专属设置。");
+        return LoadFiles(Path.Combine(Root, "wanxiang.schema.yaml"), Path.Combine(Root, "wanxiang.custom.yaml"), "");
+    }
+    InputSettings LoadFiles(string schemaFile, string customFile, string phrases)
+    {
+        var patch = Map(Read(customFile), "patch"); var schema = Read(schemaFile);
+        string schemaId = Path.GetFileName(schemaFile).Replace(".schema.yaml", "");
+        var effective = new RimeSettings(Root).EffectiveSchema(schemaId);
+        YamlNode? Value(string key) => RimeSettings.ReadNode(patch, key) ?? RimeSettings.ReadNode(effective, key);
+        string? ValueText(string key) => (Value(key) as YamlScalarNode)?.Value;
+        var result = new InputSettings { EnableCorrection = ValueText("translator/enable_correction") != "false" };
         var switches = Switches(schema);
-        result.Simplified = Scalar(patch, $"switches/@{FindSwitch(switches, "s2s")}/reset") is not ("1" or "2" or "3");
-        result.ContextReorder = Scalar(patch, $"switches/@{FindSwitch(switches, "context_reorder")}/reset") != "0";
-        if (patch.Children.TryGetValue("speller/algebra/__patch", out var mode) && mode is YamlSequenceNode modes && modes.Children.FirstOrDefault() is YamlScalarNode first)
+        result.Simplified = ValueText($"switches/@{FindSwitch(switches, "s2s")}/reset") is not ("1" or "2" or "3");
+        result.ContextReorder = ValueText($"switches/@{FindSwitch(switches, "context_reorder")}/reset") != "0";
+        if (Value("speller/algebra/__patch") is YamlSequenceNode modes && modes.Children.OfType<YamlScalarNode>().FirstOrDefault(n => n.Value?.StartsWith("wanxiang_algebra:/base/") == true) is { } first)
             result.PinyinMode = first.Value?.Split('/').Last() ?? "全拼";
-        if (patch.Children.TryGetValue("speller/algebra/+", out var fuzzy) && fuzzy is YamlSequenceNode rules)
+        if (RimeSettings.ReadNode(patch, "speller/algebra/+") is YamlSequenceNode rules)
         {
             var values = rules.Children.OfType<YamlScalarNode>().Select(n => n.Value).ToHashSet();
             result.FuzzyGroups = Fuzzy.Where(pair => pair.Value.Any(values.Contains)).Select(pair => pair.Key).ToList();
         }
-        string phrases = Path.Combine(Root, $"shortcuts_{id}.dict.yaml");
         if (File.Exists(phrases)) foreach (var line in File.ReadLines(phrases).SkipWhile(l => l.Trim() != "...").Skip(1)) { var parts = line.Split('\t'); if (parts.Length == 3) result.Shortcuts[parts[1]] = parts[0]; }
         return result;
     }
     public string Apply(string id, InputSettings settings)
+        => WriteBatchBackedUp(PreviewScheme("wanxiang_" + id, settings).ToDictionary(c => c.Path, c => c.After));
+    public IReadOnlyList<ConfigChange> PreviewScheme(string schemaId, InputSettings settings)
     {
+        bool scene = schemaId.StartsWith("wanxiang_");
+        string id = scene ? schemaId[9..] : "";
+        if (scene) ValidateId(id); else if (schemaId != "wanxiang") throw new InvalidDataException("当前方案不支持万象设置。");
         var modes = new[] { "全拼", "自然码", "小鹤双拼", "微软双拼", "搜狗双拼", "智能ABC", "紫光双拼", "拼音加加" };
         if (!modes.Contains(settings.PinyinMode) || settings.FuzzyGroups.Any(n => !Fuzzy.ContainsKey(n))) throw new InvalidDataException("不支持的拼音模式或模糊音组。");
         if (settings.Shortcuts.Any(p => !Regex.IsMatch(p.Key, "^[a-z][a-z0-9]{0,31}$") || p.Value.Length is < 1 or > 512 || p.Value.Contains('\n') || p.Value.Contains('\t')))
             throw new InvalidDataException("快捷短语格式无效。");
-        string file = Custom(id); var document = Read(file); var patch = Map(document, "patch"); var switches = Switches(Read(Schema(id)));
-        patch.Children[new YamlScalarNode($"switches/@{FindSwitch(switches, "s2s")}/reset")] = new YamlScalarNode(settings.Simplified ? "0" : "1");
-        patch.Children[new YamlScalarNode($"switches/@{FindSwitch(switches, "context_reorder")}/reset")] = new YamlScalarNode(settings.ContextReorder ? "1" : "0");
-        patch.Children[new YamlScalarNode("translator/enable_correction")] = new YamlScalarNode(settings.EnableCorrection ? "true" : "false");
+        string file = scene ? Custom(id) : Path.Combine(Root, "wanxiang.custom.yaml");
+        var document = Read(file); var patch = Map(document, "patch");
+        var switches = Switches(Read(scene ? Schema(id) : Path.Combine(Root, "wanxiang.schema.yaml")));
+        var previous = LoadScheme(schemaId);
+        if (previous.Simplified != settings.Simplified)
+            patch.Children[new YamlScalarNode($"switches/@{FindSwitch(switches, "s2s")}/reset")] = new YamlScalarNode(settings.Simplified ? "0" : "1");
+        if (previous.ContextReorder != settings.ContextReorder)
+            patch.Children[new YamlScalarNode($"switches/@{FindSwitch(switches, "context_reorder")}/reset")] = new YamlScalarNode(settings.ContextReorder ? "1" : "0");
+        if (previous.EnableCorrection != settings.EnableCorrection)
+            patch.Children[new YamlScalarNode("translator/enable_correction")] = new YamlScalarNode(settings.EnableCorrection ? "true" : "false");
         // Preserve rules not owned by this module, including earlier fuzzy spellings.
         var known = Fuzzy.Values.SelectMany(v => v).Concat(new[] { "derive/^z/zh/", "derive/^c/ch/", "derive/^s/sh/" }).ToHashSet();
         var rules = patch.Children.TryGetValue("speller/algebra/+", out var old) && old is YamlSequenceNode oldRules
             ? oldRules.Children.OfType<YamlScalarNode>().Where(n => !known.Contains(n.Value ?? "")).Select(n => new YamlScalarNode(n.Value)).ToList() : [];
         rules.AddRange(settings.FuzzyGroups.Distinct().SelectMany(n => Fuzzy[n]).Select(s => new YamlScalarNode(s)));
-        patch.Children[new YamlScalarNode("speller/algebra/+")] = new YamlSequenceNode(rules);
-        patch.Children[new YamlScalarNode("speller/algebra/__patch")] = new YamlSequenceNode(new YamlScalarNode("wanxiang_algebra:/base/" + settings.PinyinMode));
-        patch.Children[new YamlScalarNode("translator/prism")] = new YamlScalarNode("wanxiang_" + id);
-        patch.Children[new YamlScalarNode("custom_phrase/dictionary")] = new YamlScalarNode("shortcuts_" + id);
-        patch.Children[new YamlScalarNode("custom_phrase/prism")] = new YamlScalarNode("shortcuts_" + id);
-        return WriteBatchBackedUp(new Dictionary<string, string>
+        if (!previous.FuzzyGroups.ToHashSet().SetEquals(settings.FuzzyGroups)) patch.Children[new YamlScalarNode("speller/algebra/+")] = new YamlSequenceNode(rules);
+        if (previous.PinyinMode != settings.PinyinMode)
         {
-            [file] = Serialize(document),
-            [Path.Combine(Root, $"shortcuts_{id}.dict.yaml")] = ShortcutDictionary(id, settings.Shortcuts)
-        });
+            var refs = RimeSettings.ReadNode(patch, "speller/algebra/__patch") is YamlSequenceNode oldRefs ? oldRefs.Children.ToList() : new List<YamlNode>();
+            int index = refs.FindIndex(n => n is YamlScalarNode scalar && scalar.Value?.StartsWith("wanxiang_algebra:/base/") == true);
+            var reference = new YamlScalarNode("wanxiang_algebra:/base/" + settings.PinyinMode);
+            if (index < 0) refs.Insert(0, reference); else refs[index] = reference;
+            patch.Children[new YamlScalarNode("speller/algebra/__patch")] = new YamlSequenceNode(refs);
+        }
+        var changes = new List<ConfigChange>();
+        if (scene && !previous.Shortcuts.OrderBy(p => p.Key).SequenceEqual(settings.Shortcuts.OrderBy(p => p.Key)))
+        {
+            patch.Children[new YamlScalarNode("translator/prism")] = new YamlScalarNode("wanxiang_" + id);
+            patch.Children[new YamlScalarNode("custom_phrase/dictionary")] = new YamlScalarNode("shortcuts_" + id);
+            patch.Children[new YamlScalarNode("custom_phrase/prism")] = new YamlScalarNode("shortcuts_" + id);
+            string phrases = Path.Combine(Root, $"shortcuts_{id}.dict.yaml");
+            changes.Add(new(phrases, File.Exists(phrases) ? File.ReadAllText(phrases) : "", ShortcutDictionary(id, settings.Shortcuts)));
+        }
+        if (changes.Count > 0 || previous.Simplified != settings.Simplified || previous.ContextReorder != settings.ContextReorder || previous.EnableCorrection != settings.EnableCorrection || previous.PinyinMode != settings.PinyinMode || !previous.FuzzyGroups.ToHashSet().SetEquals(settings.FuzzyGroups))
+            changes.Add(new(file, File.Exists(file) ? File.ReadAllText(file) : "", Serialize(document)));
+        return changes;
     }
     static string ShortcutDictionary(string id, Dictionary<string, string> phrases) =>
         $"---\nname: shortcuts_{id}\nversion: '1.0'\nsort: by_weight\nuse_preset_vocabulary: false\nimport_tables: [custom_phrase]\n...\n" +
@@ -173,7 +207,15 @@ public sealed class RimeProfiles
     }
     public void ImportDictionary(string id, string source)
     {
-        ValidateId(id); if (new FileInfo(source).Length > 20 * 1024 * 1024) throw new InvalidDataException("词库超过20MiB。");
+        ValidateId(id);
+        var change = PreviewDictionary(Path.Combine(Root, id + ".dict.yaml"), source);
+        WriteBackedUp(change.Path, change.After);
+    }
+    public ConfigChange PreviewDictionary(string path, string source)
+    {
+        path = Path.GetFullPath(path);
+        if (Path.GetDirectoryName(path) != Root || !path.EndsWith(".dict.yaml", StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("请选择用户目录中的静态 .dict.yaml 词库。");
+        if (new FileInfo(source).Length > 20 * 1024 * 1024) throw new InvalidDataException("词库超过20MiB。");
         var rows = new List<string>();
         foreach (string line in File.ReadLines(source))
         {
@@ -182,12 +224,11 @@ public sealed class RimeProfiles
             if (fields.Length is < 2 or > 3 || !Regex.IsMatch(fields[1], "^[a-züv ']+$") || fields[0].Length > 256 || (fields.Length == 3 && !int.TryParse(fields[2], out _))) throw new InvalidDataException("词库须为：词语<TAB>拼音<TAB>可选词频。");
             rows.Add(line);
         }
-        string path = Path.Combine(Root, id + ".dict.yaml");
         if (!File.Exists(path)) throw new InvalidDataException("场景词库不存在。");
         var lines = File.ReadAllLines(path).ToList(); int marker = lines.FindIndex(s => s.Trim() == "...");
         if (marker < 0) throw new InvalidDataException("原词库头部无效。");
         var merged = lines.Skip(marker + 1).Concat(rows).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct();
-        WriteBackedUp(path, string.Join('\n', lines.Take(marker + 1).Concat(merged)) + "\n");
+        return new(path, File.ReadAllText(path), string.Join('\n', lines.Take(marker + 1).Concat(merged)) + "\n");
     }
     public void ExportAndroid(string destination)
     {

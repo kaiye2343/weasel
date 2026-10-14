@@ -22,6 +22,7 @@ string Package(string name, string? extra = null, Action<SkinManifest>? edit = n
 }
 try
 {
+    SettingsTests.Run(temp, Check, Reject);
     var store = new SkinStore(Path.Combine(temp, "store"));
     var skin = store.Import(Package("valid"));
     Check(store.List().Count == 1, "import valid package");
@@ -40,6 +41,16 @@ try
     Check(store.List().Count == 2, "versions coexist");
     store.Select(skin, "watermelon"); Check(store.Selection().VariantId == "watermelon", "variant switch");
     store.Reset(); Check(store.Selection().SkinId == null, "reset selection");
+    var preferences = new DisplayPreferencesStore(store.Root);
+    store.Select(skin, "plush", new SkinStyle { AnnotationPosition = "hidden", FontPoint = 21 });
+    preferences.Save(new() { AnnotationPosition = "above" });
+    Check(preferences.EffectiveStyle(store, skin, skin.Manifest.Variants[0]).AnnotationPosition == "above" && preferences.EffectiveStyle(store, skin, skin.Manifest.Variants[0]).FontPoint == 21, "display preference overrides annotation and preserves legacy style");
+    preferences.Save(new() { AnnotationPosition = "skin" });
+    Check(preferences.EffectiveStyle(store, skin, skin.Manifest.Variants[0]).AnnotationPosition == "hidden", "follow skin preserves selected legacy override");
+    store.Reset(); Check(preferences.Read().AnnotationPosition == "skin", "skin reset does not delete independent display preference");
+    var pure = store.Import(Package("pure", edit: m => { m.Id = "neutral"; m.Name = "纯配色"; m.Variants = m.Variants.Take(1).ToList(); m.Variants[0].Layers.Clear(); m.Variants[0].Style.Frame = null; }));
+    store.Select(pure, pure.Manifest.Variants[0].Id); Check(store.List().Count == 3 && pure.Manifest.Variants.Count == 1, "generic pure color package and arbitrary variant count");
+    store.Select(skin, "plush"); Check(store.Selection().SkinVersion == "1.0.0", "rollback to installed earlier package version");
     string export = Path.Combine(temp, "export.rimeskin"); store.Export(skin, export);
     Check(new SkinStore(Path.Combine(temp, "second")).Import(export).Manifest.Id == "shorekeeper", "export reimports");
     Reject(() => SkinStore.ResolveAsset(temp, "NUL.png"), "reject reserved device path");
@@ -62,6 +73,14 @@ try
     var loaded = profiles.Load("work"); Check(loaded.PinyinMode == "自然码" && loaded.FuzzyGroups.SequenceEqual(new[] { "n_l" }) && loaded.Shortcuts["sk"] == "守岸人", "input settings round trip");
     Check(File.ReadAllText(Path.Combine(backup, "wanxiang_work.custom.yaml")) == workBefore, "original configuration backed up");
     Check(File.ReadAllText(Path.Combine(profilesRoot, "default.custom.yaml")).Contains("menu/page_size: 7"), "unrelated default patch preserved");
+    string baseCustom = Path.Combine(profilesRoot, "wanxiang.custom.yaml");
+    File.WriteAllText(baseCustom, "patch:\n  translator/enable_correction: false\n  speller/algebra/__patch: [wanxiang_algebra:/base/全拼, custom_extra]\n  unrelated: keep-base\n");
+    var baseSettings = profiles.LoadScheme("wanxiang"); baseSettings.EnableCorrection = true;
+    var basePlan = new ConfigurationPlan(profiles.PreviewScheme("wanxiang", baseSettings)); basePlan.Save(profilesRoot);
+    string baseAfter = File.ReadAllText(baseCustom);
+    Check(baseAfter.Contains("custom_extra") && baseAfter.Contains("unrelated: keep-base") && !baseAfter.Contains("switches/@"), "Wanxiang base changes only edited option");
+    baseSettings.PinyinMode = "小鹤双拼"; new ConfigurationPlan(profiles.PreviewScheme("wanxiang", baseSettings)).Save(profilesRoot);
+    Check(File.ReadAllText(baseCustom).Contains("custom_extra") && profiles.LoadScheme("wanxiang").PinyinMode == "小鹤双拼", "Wanxiang mode preserves unrelated algebra references");
     string import = Path.Combine(temp, "words.tsv"); File.WriteAllText(import, "守岸人\tshou an ren\t100\n"); profiles.ImportDictionary("work", import); profiles.ImportDictionary("work", import);
     Check(File.ReadAllLines(Path.Combine(profilesRoot, "work.dict.yaml")).Count(l => l.StartsWith("守岸人\t")) == 1, "word import deduplicates");
     Reject(() => profiles.WriteBatchBackedUp(new Dictionary<string, string> { [workCustom] = "changed", [Path.Combine(temp, "escape")] = "bad" }), "reject batch outside profile root");
