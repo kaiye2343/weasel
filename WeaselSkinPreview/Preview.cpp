@@ -54,7 +54,8 @@ static void UpdatePreview(HWND window) {
   for (int i = 0; i < 5; ++i) {
     weasel::Text text, label, comment;
     text.str = long_text && i == 0 ? L"我想在这里尝试一下输入" : shortWords[i];
-    label.str = std::to_wstring(i + 1); comment.str = tones[i];
+    label.str = std::to_wstring(i + 1);
+    comment.str = long_text && i == 0 ? L"wǒ xiǎng zài zhè lǐ cháng shì yí xià shū rù" : tones[i];
     context.cinfo.candies.push_back(text); context.cinfo.labels.push_back(label); context.cinfo.comments.push_back(comment);
   }
   RECT rect; GetWindowRect(window, &rect);
@@ -72,14 +73,19 @@ static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w, LPARAM l) 
       break;
     case WM_MOVE: if (ui.pdwr()) UpdatePreview(hwnd); break;
     case WM_KEYDOWN:
-      if (w == '1' || w == '2' || w == '3') { ui.style().annotation_position = w - '1'; ui.Refresh(); }
+      if (w == '1' || w == '2' || w == '3') { ui.style().annotation_position = w == '1' ? 1 : w == '2' ? 0 : 2; ui.Refresh(); }
       if (w == VK_ESCAPE) DestroyWindow(hwnd);
       break;
     case WM_PAINT: {
       PAINTSTRUCT paint; HDC dc = BeginPaint(hwnd, &paint);
       SetBkMode(dc, TRANSPARENT); SetTextColor(dc, RGB(40, 60, 80));
+      HFONT font = CreateFontW(-18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+                              OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                              DEFAULT_PITCH, L"Microsoft YaHei UI");
+      HGDIOBJ oldFont = SelectObject(dc, font);
       RECT text{30, 30, 780, 150};
       DrawTextW(dc, L"原生皮肤预览 · 不连接输入法、不读取词库\n候选自动切换长短文本；拖动窗口测试屏幕边缘与跨屏\n按 1 上方注音 / 2 旁边注音 / 3 隐藏；Esc 关闭", -1, &text, DT_LEFT);
+      SelectObject(dc, oldFont); DeleteObject(font);
       EndPaint(hwnd, &paint); return 0;
     }
     case WM_DESTROY: ui.Destroy(true); PostQuitMessage(0); return 0;
