@@ -78,7 +78,7 @@ jobs:
       - name: Test official Rime learning and snapshot merge
         shell: cmd
         run: |
-          cl /nologo /EHsc /std:c++17 /utf-8 /Iinclude tests\rime_learning_test.cpp /Fe:output\rime_learning_test.exe /link /LIBPATH:lib rime.lib
+          cl /nologo /EHsc /std:c++17 /utf-8 /Iinclude tests\rime_learning_test.cpp /Fe:output\rime_learning_test.exe /link /LIBPATH:lib64 rime.lib
           if errorlevel 1 exit /b 1
           output\rime_learning_test.exe .tools\native-learning
           if errorlevel 1 exit /b 1

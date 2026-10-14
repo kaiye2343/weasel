@@ -75,6 +75,7 @@ int main(int argc, char** argv) {
     Learn("daily", "haoni{space}", u8"好你"); Sync(); api->finalize();
     Require(Snapshot(windows, "windows-test", "work").find(u8"你好\t") != std::string::npos, "work phrase was not learned");
     Require(Snapshot(windows, "windows-test", "daily").find(u8"你好\t") == std::string::npos, "work learning leaked into daily");
+    fs::create_directories(phone / "sync");
     fs::copy(windows / "sync" / "windows-test", phone / "sync" / "windows-test", fs::copy_options::recursive);
     Open(phone); Sync(); Learn("work", "nihaoni{space}", u8"你好你"); Sync(); api->finalize();
     fs::copy(phone / "sync" / "phone-test", windows / "sync" / "phone-test", fs::copy_options::recursive);
