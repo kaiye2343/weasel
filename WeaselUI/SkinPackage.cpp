@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include <WeaselSkin.h>
 #include <WeaselUtility.h>
-#include <boost/json/src.hpp>
+#include <boost/json.hpp>
 #include <fstream>
 #include <regex>
 #include <gdiplus.h>

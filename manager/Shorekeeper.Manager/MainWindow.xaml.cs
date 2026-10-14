@@ -23,7 +23,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         string[] args = Environment.GetCommandLineArgs(); int index = Array.IndexOf(args, "--data-root");
         store = new SkinStore(index >= 0 && index + 1 < args.Length ? args[index + 1] : null);
-        RimeDirectory.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Rime");
+        RimeDirectory.Text = InstalledUserDirectory();
         InputMode.ItemsSource = new[] { "全拼", "自然码", "小鹤双拼", "微软双拼", "搜狗双拼", "智能ABC", "紫光双拼", "拼音加加" };
         foreach (var name in RimeProfiles.FuzzyNames) FuzzyOptions.Children.Add(new CheckBox { Content = name.Replace('_', '/'), Tag = name, Margin = new Thickness(0, 4, 20, 8) });
         Closing += (_, _) => lifetime.Cancel();
@@ -138,27 +138,36 @@ public partial class MainWindow : Window
     }
     string InstalledDirectory()
     {
+        if (!Path.GetFullPath(RimeDirectory.Text).TrimEnd(Path.DirectorySeparatorChar).Equals(InstalledUserDirectory().TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+            throw new IOException("官方部署器只操作当前安装的用户目录。此处目录不同，请先导出配置包或使用隔离测试工具，避免误部署日常输入法。");
         using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Rime\Weasel");
         string? directory = key?.GetValue("WeaselRoot") as string;
         if (directory == null) throw new IOException("未找到已安装的小狼毫。"); return directory;
     }
+    static string InstalledUserDirectory()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Rime\Weasel");
+        return Path.GetFullPath(key?.GetValue("RimeUserDir") as string ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Rime"));
+    }
     async void SaveInputSettings(object sender, RoutedEventArgs e) => await Work(async () =>
     {
         string root = RimeDirectory.Text, id = ProfileId.Text; var settings = EditedInput();
+        var runner = new RimeProcess(InstalledDirectory());
         if (MessageBox.Show("将备份并保存当前场景设置，然后重新部署。YAML的注释和排版可能变化，原文件可从备份恢复。", "应用输入设置", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
         string backup = await Task.Run(() => new RimeProfiles(root).Apply(id, settings));
-        await new RimeProcess(InstalledDirectory()).RunAsync("deploy", lifetime.Token); StatusText.Text = "设置已应用。备份：" + backup;
+        await runner.RunAsync("deploy", lifetime.Token); StatusText.Text = "设置已应用。备份：" + backup;
     });
     async void CreateProfile(object sender, RoutedEventArgs e) => await Work(async () =>
     {
         string root = RimeDirectory.Text, id = ProfileId.Text;
+        var runner = new RimeProcess(InstalledDirectory());
         if (MessageBox.Show("将新建场景配置和独立学习数据命名，并追加到方案菜单。", "新建场景", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
-        await Task.Run(() => new RimeProfiles(root).Create(id)); await new RimeProcess(InstalledDirectory()).RunAsync("deploy", lifetime.Token); StatusText.Text = "场景已创建，可在方案菜单切换。";
+        await Task.Run(() => new RimeProfiles(root).Create(id)); await runner.RunAsync("deploy", lifetime.Token); StatusText.Text = "场景已创建，可在方案菜单切换。";
     });
     async void ImportDictionary(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog { Filter = "词库TSV/文本|*.tsv;*.txt" }; if (dialog.ShowDialog() != true) return;
-        await Work(async () => { string root = RimeDirectory.Text, id = ProfileId.Text; await Task.Run(() => new RimeProfiles(root).ImportDictionary(id, dialog.FileName)); await new RimeProcess(InstalledDirectory()).RunAsync("deploy", lifetime.Token); StatusText.Text = "词库已备份、合并并部署。"; });
+        await Work(async () => { string root = RimeDirectory.Text, id = ProfileId.Text; var runner = new RimeProcess(InstalledDirectory()); await Task.Run(() => new RimeProfiles(root).ImportDictionary(id, dialog.FileName)); await runner.RunAsync("deploy", lifetime.Token); StatusText.Text = "词库已备份、合并并部署。"; });
     }
     async void BackupProfile(object sender, RoutedEventArgs e)
     {

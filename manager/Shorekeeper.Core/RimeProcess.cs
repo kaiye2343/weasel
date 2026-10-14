@@ -26,6 +26,14 @@ public sealed class RimeProcess(string directory) : IRimeRunner
 }
 public static class RimeSnapshots
 {
+    public static void RequireDefaultSyncDirectory(string root)
+    {
+        var yaml = new YamlStream(); using var reader = File.OpenText(Path.Combine(root, "installation.yaml")); yaml.Load(reader);
+        var map = (YamlMappingNode)yaml.Documents[0].RootNode;
+        if (map.Children.TryGetValue("sync_dir", out var value) && value is YamlScalarNode scalar && !string.IsNullOrWhiteSpace(scalar.Value) &&
+            !Path.GetFullPath(scalar.Value, root).TrimEnd(Path.DirectorySeparatorChar).Equals(Path.Combine(Path.GetFullPath(root), "sync"), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("当前工具尚不支持自定义 sync_dir；请使用默认用户目录下的 sync 文件夹，避免读取错误快照。");
+    }
     public static string InstallationId(string root)
     {
         var yaml = new YamlStream(); using var reader = File.OpenText(Path.Combine(root, "installation.yaml")); yaml.Load(reader);
@@ -35,6 +43,7 @@ public static class RimeSnapshots
     }
     public static string BackupAll(string root)
     {
+        RequireDefaultSyncDirectory(root);
         string backup = Path.Combine(root, "backups", "shorekeeper-sync", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"));
         Directory.CreateDirectory(backup);
         string sync = Path.Combine(root, "sync");
@@ -47,6 +56,7 @@ public static class RimeSnapshots
     public static async Task BackupProfileAsync(string root, string id, string destination, IRimeRunner runner)
     {
         RimeProfiles.ValidateId(id); if (File.Exists(destination)) throw new IOException("备份目标已存在。");
+        RequireDefaultSyncDirectory(root);
         await runner.RunAsync("sync");
         using var zip = ZipFile.Open(destination, ZipArchiveMode.Create);
         foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.TopDirectoryOnly))
