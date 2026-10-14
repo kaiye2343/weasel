@@ -196,14 +196,15 @@ struct Config {
 struct SkinImage {
   std::wstring path;
   std::wstring anchor;
-  int x = 0, y = 0, width = 0, height = 0;
+  int x = 0, y = 0, width = 0, height = 0, z = 0;
   bool operator==(const SkinImage& other) const {
     return path == other.path && anchor == other.anchor && x == other.x &&
-           y == other.y && width == other.width && height == other.height;
+           y == other.y && width == other.width && height == other.height &&
+           z == other.z;
   }
   template <typename Archive>
   void serialize(Archive& ar, const unsigned int) {
-    ar & path & anchor & x & y & width & height;
+    ar & path & anchor & x & y & width & height & z;
   }
 };
 
@@ -239,6 +240,11 @@ struct UIStyle {
   // 只在 background_image 非空时起作用
   int background_fill_mode;
   std::vector<SkinImage> skin_images;
+  int skin_border_style = 1, skin_border_inset = 0;
+  int annotation_position = 0;
+  std::vector<int> skin_padding;
+  std::wstring skin_frame_image;
+  std::vector<int> skin_frame_slice;
   int font_point;
   int label_font_point;
   int comment_font_point;
@@ -396,8 +402,14 @@ struct UIStyle {
         comment_font_face != st.comment_font_face ||
         background_image != st.background_image ||
         background_fill_mode != st.background_fill_mode ||
-        skin_images != st.skin_images || hover_type != st.hover_type ||
-        font_point != st.font_point ||
+        skin_images != st.skin_images ||
+        skin_border_style != st.skin_border_style ||
+        skin_border_inset != st.skin_border_inset ||
+        annotation_position != st.annotation_position ||
+        skin_padding != st.skin_padding ||
+        skin_frame_image != st.skin_frame_image ||
+        skin_frame_slice != st.skin_frame_slice ||
+        hover_type != st.hover_type || font_point != st.font_point ||
         label_font_point != st.label_font_point ||
         comment_font_point != st.comment_font_point ||
         candidate_abbreviate_length != st.candidate_abbreviate_length ||
@@ -460,6 +472,8 @@ void serialize(Archive& ar, weasel::UIStyle& s, const unsigned int version) {
   ar & s.background_image;
   ar & s.background_fill_mode;
   ar & s.skin_images;
+  ar & s.skin_border_style & s.skin_border_inset & s.annotation_position;
+  ar & s.skin_padding & s.skin_frame_image & s.skin_frame_slice;
   ar & s.hover_type;
   ar & s.font_point;
   ar & s.label_font_point;

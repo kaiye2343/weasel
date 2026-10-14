@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "WeaselServerImpl.h"
 #include <mutex>
 #include <Windows.h>
@@ -397,6 +397,12 @@ void ServerImpl::HandlePipeMessage(PipeMessage pipe_msg, _Resp resp) {
                   OnHighlightCandidateOnCurrentPage);
   PIPE_MSG_HANDLE(WEASEL_IPC_CHANGE_PAGE, OnChangePage);
   PIPE_MSG_HANDLE(WEASEL_IPC_TRAY_COMMAND, OnCommand);
+  case WEASEL_IPC_RELOAD_SKIN:
+    _result = m_pRequestHandler && m_pRequestHandler->ReloadSkin();
+    break;
+  case WEASEL_IPC_DIAGNOSTICS:
+    _result = m_pRequestHandler && m_pRequestHandler->SaveDiagnostics();
+    break;
   END_MAP_PIPE_MSG_HANDLE(result);
 
   resp(result);

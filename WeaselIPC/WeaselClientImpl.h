@@ -27,6 +27,8 @@ class ClientImpl {
   void FocusIn();
   void FocusOut();
   void TrayCommand(UINT menuId);
+  bool ReloadSkin();
+  bool SaveDiagnostics();
   bool GetResponseData(ResponseHandler const& handler);
 
  protected:

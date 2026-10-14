@@ -1,10 +1,14 @@
 #include "stdafx.h"
 #include <logging.h>
+#include <WeaselSkin.h>
 #include <RimeWithWeasel.h>
 #include <StringAlgorithm.hpp>
 #include <WeaselConstants.h>
 #include <WeaselUtility.h>
 #include <boost/algorithm/string.hpp>
+#include <boost/json.hpp>
+#include <fstream>
+#include <chrono>
 #include <vector>
 
 #include <filesystem>
@@ -667,7 +671,81 @@ void RimeWithWeaselHandler::_LoadSchemaSpecificSettings(
     style.current_half_icon = load_icon(config, "schema/half_icon", NULL);
   }
   // load schema icon end
+  std::string skin_error;
+  if (!LoadActiveSkin(style, skin_error))
+    LOG(WARNING) << "skin-load: " << skin_error;
   rime_api->config_close(&config);
+}
+
+bool RimeWithWeaselHandler::SaveDiagnostics() {
+  try {
+    boost::json::object data;
+    data["schemaVersion"] = 1;
+    data["pid"] = (int64_t)GetCurrentProcessId();
+    data["capturedAtUnixMs"] =
+        (int64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch())
+            .count();
+    data["userDataDirectory"] = wtou8(WeaselUserDataPath());
+    data["activeSession"] = (int64_t)m_active_session;
+    data["maintenance"] = m_disabled;
+    boost::json::array sessions;
+    for (const auto& entry : m_session_status_map) {
+      RIME_STRUCT(RimeStatus, status);
+      if (!rime_api->get_status(entry.second.session_id, &status))
+        continue;
+      boost::json::object session;
+      session["ipcSession"] = (int64_t)entry.first;
+      session["schemaId"] = status.schema_id ? status.schema_id : "";
+      session["asciiMode"] = (bool)status.is_ascii_mode;
+      session["simplified"] = (bool)status.is_simplified;
+      session["traditional"] = (bool)status.is_traditional;
+      session["horizontal"] =
+          entry.second.style.layout_type == UIStyle::LAYOUT_HORIZONTAL;
+      sessions.push_back(std::move(session));
+      rime_api->free_status(&status);
+    }
+    data["sessions"] = std::move(sessions);
+    auto root = SkinDataRoot();
+    std::filesystem::create_directories(root);
+    auto temp = root / L"runtime.json.tmp", dest = root / L"runtime.json";
+    {
+      std::ofstream stream(temp, std::ios::binary);
+      stream << boost::json::serialize(data);
+      stream.flush();
+      if (!stream)
+        return false;
+    }
+    return MoveFileExW(temp.c_str(), dest.c_str(),
+                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+  } catch (const std::exception& error) {
+    LOG(WARNING) << "diagnostics: " << error.what();
+    return false;
+  }
+}
+
+bool RimeWithWeaselHandler::ReloadSkin() {
+  UIStyle check = m_base_style;
+  std::string error;
+  if (!LoadActiveSkin(check, error)) {
+    LOG(WARNING) << "skin-reload: " << error;
+    return false;
+  }
+  for (auto& entry : m_session_status_map) {
+    RIME_STRUCT(RimeStatus, status);
+    if (rime_api->get_status(entry.second.session_id, &status)) {
+      std::string schema(status.schema_id);
+      rime_api->free_status(&status);
+      _LoadSchemaSpecificSettings(entry.first, schema);
+      entry.second.__synced = false;
+    }
+  }
+  if (m_session_status_map.count(m_active_session)) {
+    m_ui->style() = get_session_status(m_active_session).style;
+    m_ui->Refresh();
+  }
+  LOG(INFO) << "skin-reload: applied without resetting Rime sessions";
+  return true;
 }
 
 void RimeWithWeaselHandler::_LoadAppInlinePreeditSet(WeaselSessionId ipc_id,

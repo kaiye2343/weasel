@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "WeaselClientImpl.h"
 #include <StringAlgorithm.hpp>
 
@@ -140,6 +140,16 @@ void ClientImpl::FocusOut() {
 
 void ClientImpl::TrayCommand(UINT menuId) {
   _SendMessage(WEASEL_IPC_TRAY_COMMAND, menuId, session_id);
+}
+bool ClientImpl::ReloadSkin() {
+  return _SendMessage(WEASEL_IPC_RELOAD_SKIN, 0, 0) != 0;
+}
+bool ClientImpl::SaveDiagnostics() {
+  return _SendMessage(WEASEL_IPC_DIAGNOSTICS, 0, 0) != 0;
+}
+bool Client::SaveDiagnostics() { return m_pImpl->SaveDiagnostics(); }
+bool Client::ReloadSkin() {
+  return m_pImpl->ReloadSkin();
 }
 
 void ClientImpl::StartSession() {

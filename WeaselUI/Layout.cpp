@@ -19,6 +19,8 @@ Layout::Layout(const UIStyle& style,
       cmtFontValid(!!(_style.comment_font_point > 0)) {
   if (pDWR) {
     float scale = pDWR->dpiScaleLayout;
+    for (auto& padding : _style.skin_padding)
+      padding = (int)(padding * scale);
     _style.min_width = (int)(_style.min_width * scale);
     _style.min_height = (int)(_style.min_height * scale);
     _style.max_width = (int)(_style.max_width * scale);

@@ -61,6 +61,8 @@ class RimeWithWeaselHandler : public weasel::RequestHandler {
                          const std::string& opt,
                          bool val);
   virtual void UpdateColorTheme(BOOL darkMode);
+  virtual bool ReloadSkin();
+  virtual bool SaveDiagnostics();
 
   void OnUpdateUI(std::function<void()> const& cb);
 

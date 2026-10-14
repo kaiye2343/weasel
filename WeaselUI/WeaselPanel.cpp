@@ -624,19 +624,21 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
   }
   // 候选窗背景图：填色之后按同一圆角路径裁进来画一层，压在候选文字之下
   // 只在整窗背景这一步绘制，候选词高亮不贴图；全屏布局跳过
-  if (type == BackType::BACKGROUND && !m_style.background_image.empty() &&
+  const auto& background = m_style.skin_frame_image.empty()
+                               ? m_style.background_image
+                               : m_style.skin_frame_image;
+  if (type == BackType::BACKGROUND && !background.empty() &&
       NOT_FULLSCREENLAYOUT(m_style)) {
     // 按路径缓存原图：换宽高不重读盘，缩放在绘制时计算。
     // 图已被释放（关窗后重开）或路径变了都必须重载——
     // 只比路径会把「图没了」误判成「已经加载过」。
-    if (m_bg_image == NULL || m_bg_image_path != m_style.background_image) {
+    if (m_bg_image == NULL || m_bg_image_path != background) {
       delete m_bg_image;
       m_bg_image = NULL;
-      Gdiplus::Bitmap* src =
-          Gdiplus::Bitmap::FromFile(m_style.background_image.c_str());
+      Gdiplus::Bitmap* src = Gdiplus::Bitmap::FromFile(background.c_str());
       if (src && src->GetLastStatus() == Gdiplus::Ok) {
         // 加载成功才记账
-        m_bg_image_path = m_style.background_image;
+        m_bg_image_path = background;
         UINT sw = src->GetWidth(), sh = src->GetHeight();
         // 超大图先缩一道再保留，避免解码后常驻内存过大
         if (sw > kBgImageMaxSide || sh > kBgImageMaxSide ||
@@ -669,10 +671,14 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
     }
   }
   // draw border, for bordercolor not transparent and border valid
-  if (COLORNOTTRANSPARENT(bordercolor) && DPI_SCALE(m_style.border) > 0) {
+  if (COLORNOTTRANSPARENT(bordercolor) && DPI_SCALE(m_style.border) > 0 &&
+      (type != BackType::BACKGROUND ||
+       (m_style.skin_border_style != 0 && m_style.skin_border_inset == 0))) {
     Gdiplus::Color border_color = GDPCOLOR_FROM_COLORREF(bordercolor);
     Gdiplus::Pen gPenBorder(border_color,
                             (Gdiplus::REAL)DPI_SCALE(m_style.border));
+    if (type == BackType::BACKGROUND && m_style.skin_border_style == 2)
+      gPenBorder.SetDashStyle(Gdiplus::DashStyleDash);
     // candidate window border
     if (type == BackType::BACKGROUND) {
       GraphicsRoundRectPath bgPath(rc, DPI_SCALE(m_style.round_corner_ex));
@@ -681,14 +687,17 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
                BackType::TEXT)  // hilited_candidate_border / candidate_border
       g_back.DrawPath(&gPenBorder, hiliteBackPath);
   }
-  if (type == BackType::BACKGROUND && !m_skin_rects.empty()) {
+  if (type == BackType::BACKGROUND && m_style.skin_border_style != 0 &&
+      m_style.skin_border_inset > 0) {
     CRect inner = rc;
-    inner.DeflateRect(DPI_SCALE(4), DPI_SCALE(4));
+    inner.DeflateRect(DPI_SCALE(m_style.skin_border_inset),
+                      DPI_SCALE(m_style.skin_border_inset));
     if (inner.Width() > 0 && inner.Height() > 0) {
       GraphicsRoundRectPath innerPath(inner, DPI_SCALE(m_style.round_corner));
       Gdiplus::Pen stitch(GDPCOLOR_FROM_COLORREF(m_style.border_color),
-                          (Gdiplus::REAL)DPI_SCALE(1));
-      stitch.SetDashStyle(Gdiplus::DashStyleDash);
+                          (Gdiplus::REAL)DPI_SCALE(m_style.border));
+      if (m_style.skin_border_style == 2)
+        stitch.SetDashStyle(Gdiplus::DashStyleDash);
       g_back.DrawPath(&stitch, &innerPath);
     }
   }
@@ -703,6 +712,33 @@ void WeaselPanel::_DrawBackgroundImage(Gdiplus::Graphics& g,
                                        Gdiplus::GraphicsPath* clip_path) {
   if (!m_bg_image)
     return;
+  if (!m_style.skin_frame_image.empty() &&
+      m_style.skin_frame_slice.size() == 4) {
+    const auto& cuts = m_style.skin_frame_slice;
+    int sw = (int)m_bg_image->GetWidth(), sh = (int)m_bg_image->GetHeight();
+    if (cuts[0] + cuts[2] >= sw || cuts[1] + cuts[3] >= sh)
+      return;
+    int left = (std::min)(DPI_SCALE(cuts[0]), rc.Width() / 2);
+    int right = (std::min)(DPI_SCALE(cuts[2]), rc.Width() / 2);
+    int top = (std::min)(DPI_SCALE(cuts[1]), rc.Height() / 2);
+    int bottom = (std::min)(DPI_SCALE(cuts[3]), rc.Height() / 2);
+    int sx[] = {0, cuts[0], sw - cuts[2], sw};
+    int sy[] = {0, cuts[1], sh - cuts[3], sh};
+    int dx[] = {rc.left, rc.left + left, rc.right - right, rc.right};
+    int dy[] = {rc.top, rc.top + top, rc.bottom - bottom, rc.bottom};
+    auto saved = g.Save();
+    g.SetClip(clip_path);
+    for (int y = 0; y < 3; ++y)
+      for (int x = 0; x < 3; ++x)
+        if (sx[x + 1] > sx[x] && sy[y + 1] > sy[y])
+          g.DrawImage(
+              m_bg_image,
+              Gdiplus::Rect(dx[x], dy[y], dx[x + 1] - dx[x], dy[y + 1] - dy[y]),
+              sx[x], sy[y], sx[x + 1] - sx[x], sy[y + 1] - sy[y],
+              Gdiplus::UnitPixel);
+    g.Restore(saved);
+    return;
+  }
   // 大图缩到候选窗尺寸要高质量重采样，不然发虚
   Gdiplus::InterpolationMode prev_interp = g.GetInterpolationMode();
   g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
@@ -1174,6 +1210,15 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
                      DPI_SCALE(m_style.round_corner_ex), BackType::BACKGROUND,
                      IsToRoundStruct(), m_style.border_color);
     }
+    {
+      Gdiplus::Bitmap under(rcw.Width(), rcw.Height(), rcw.Width() * 4,
+                            PixelFormat32bppPARGB, static_cast<BYTE*>(pixels));
+      Gdiplus::Graphics graphics(&under);
+      graphics.SetInterpolationMode(
+          Gdiplus::InterpolationModeHighQualityBicubic);
+      _DrawSkinImages(graphics, CPoint(0, 0), true);
+      graphics.Flush(Gdiplus::FlushIntentionSync);
+    }
     if (!m_ctx.aux.str.empty()) {
       if (m_istorepos)
         auxrc.OffsetRect(0, m_offsety_aux);
@@ -1258,6 +1303,25 @@ void WeaselPanel::RedrawWindow() {
   ReleaseDC(hdc);
 }
 
+void WeaselPanel::_DrawSkinImages(Gdiplus::Graphics& graphics,
+                                  CPoint origin,
+                                  bool below) {
+  for (size_t i = 0; i < m_skin_rects.size(); ++i) {
+    if (!m_skin_bitmaps[i] || (m_skin_config[i].z < 0) != below)
+      continue;
+    CRect target = m_skin_rects[i];
+    target.OffsetRect(origin);
+    auto* image = m_skin_bitmaps[i].get();
+    const float scale = (std::min)((float)target.Width() / image->GetWidth(),
+                                   (float)target.Height() / image->GetHeight());
+    const int width = (int)(image->GetWidth() * scale);
+    const int height = (int)(image->GetHeight() * scale);
+    graphics.DrawImage(m_skin_bitmaps[i].get(),
+                       target.left + (target.Width() - width) / 2,
+                       target.bottom - height, width, height);
+  }
+}
+
 void WeaselPanel::_LayerUpdate(const CRect& rc, CDCHandle dc) {
   HDC ScreenDC = ::GetDC(NULL);
   CRect rect;
@@ -1287,6 +1351,15 @@ void WeaselPanel::_LayerUpdate(const CRect& rc, CDCHandle dc) {
     memset(pixels, 0, (size_t)sz.cx * sz.cy * 4);
     skinDC = CreateCompatibleDC(ScreenDC);
     oldBitmap = SelectObject(skinDC, skinBitmap);
+    {
+      Gdiplus::Bitmap under(sz.cx, sz.cy, sz.cx * 4, PixelFormat32bppPARGB,
+                            static_cast<BYTE*>(pixels));
+      Gdiplus::Graphics graphics(&under);
+      graphics.SetInterpolationMode(
+          Gdiplus::InterpolationModeHighQualityBicubic);
+      _DrawSkinImages(graphics, m_skin_origin, true);
+      graphics.Flush(Gdiplus::FlushIntentionSync);
+    }
     // Copy the candidate pixels, including premultiplied alpha, unchanged.
     BitBlt(skinDC, m_skin_origin.x, m_skin_origin.y, rc.Width(), rc.Height(),
            dc, 0, 0, SRCCOPY);
@@ -1296,21 +1369,7 @@ void WeaselPanel::_LayerUpdate(const CRect& rc, CDCHandle dc) {
     Gdiplus::Graphics graphics(&canvas);
     graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
     graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
-    for (size_t i = 0; i < m_skin_rects.size(); ++i) {
-      if (!m_skin_bitmaps[i])
-        continue;
-      CRect target = m_skin_rects[i];
-      target.OffsetRect(m_skin_origin);
-      auto* image = m_skin_bitmaps[i].get();
-      const float scale =
-          (std::min)((float)target.Width() / image->GetWidth(),
-                     (float)target.Height() / image->GetHeight());
-      const int width = (int)(image->GetWidth() * scale);
-      const int height = (int)(image->GetHeight() * scale);
-      graphics.DrawImage(m_skin_bitmaps[i].get(),
-                         target.left + (target.Width() - width) / 2,
-                         target.bottom - height, width, height);
-    }
+    _DrawSkinImages(graphics, m_skin_origin, false);
     graphics.Flush(Gdiplus::FlushIntentionSync);
     dc = skinDC;
   }

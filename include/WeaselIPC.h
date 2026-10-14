@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <WeaselIPCData.h>
 #include <WeaselUtility.h>
 #include <windows.h>
@@ -10,7 +10,7 @@
 #define WEASEL_IPC_PIPE_NAME L"WeaselNamedPipe"
 
 #define WEASEL_IPC_METADATA_SIZE 1024
-#define WEASEL_IPC_BUFFER_SIZE (4 * 1024)
+#define WEASEL_IPC_BUFFER_SIZE (64 * 1024)
 #define WEASEL_IPC_BUFFER_LENGTH (WEASEL_IPC_BUFFER_SIZE / sizeof(WCHAR))
 #define WEASEL_IPC_SHARED_MEMORY_SIZE \
   (sizeof(PipeMessage) + WEASEL_IPC_BUFFER_SIZE)
@@ -32,6 +32,8 @@ enum WEASEL_IPC_COMMAND {
   WEASEL_IPC_SELECT_CANDIDATE_ON_CURRENT_PAGE,
   WEASEL_IPC_HIGHLIGHT_CANDIDATE_ON_CURRENT_PAGE,
   WEASEL_IPC_CHANGE_PAGE,
+  WEASEL_IPC_RELOAD_SKIN,
+  WEASEL_IPC_DIAGNOSTICS,
   WEASEL_IPC_LAST_COMMAND
 };
 
@@ -81,6 +83,8 @@ struct RequestHandler {
   virtual void EndMaintenance() {}
   virtual void SetOption(DWORD session_id, const std::string& opt, bool val) {}
   virtual void UpdateColorTheme(BOOL darkMode) {}
+  virtual bool ReloadSkin() { return false; }
+  virtual bool SaveDiagnostics() { return false; }
 };
 
 // 處理server端回應之物件
@@ -140,6 +144,8 @@ class Client {
   void FocusOut();
   // 托盤菜單
   void TrayCommand(UINT menuId);
+  bool ReloadSkin();
+  bool SaveDiagnostics();
   // 读取server返回的数据
   bool GetResponseData(ResponseHandler handler);
 

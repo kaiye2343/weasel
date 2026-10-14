@@ -1,4 +1,4 @@
-﻿// WeaselServer.cpp : main source file for WeaselServer.exe
+// WeaselServer.cpp : main source file for WeaselServer.exe
 //
 //	WTL MessageLoop 封装了消息循环. 实现了 getmessage/dispatchmessage....
 
@@ -66,6 +66,16 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
     CreateDirectory(WeaselUserDataPath().c_str(), NULL);
     WeaselServerApp::explore(WeaselUserDataPath());
     return 0;
+  }
+  if (!wcscmp(L"/skin-reload", lpstrCmdLine)) {
+    weasel::Client client;
+    if (!client.Connect()) return 2;
+    return client.ReloadSkin() ? 0 : 3;
+  }
+  if (!wcscmp(L"/diagnostics", lpstrCmdLine)) {
+    weasel::Client client;
+    if (!client.Connect()) return 2;
+    return client.SaveDiagnostics() ? 0 : 3;
   }
   if (!wcscmp(L"/weaseldir", lpstrCmdLine)) {
     WeaselServerApp::explore(WeaselServerApp::install_dir());

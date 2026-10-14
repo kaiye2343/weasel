@@ -111,7 +111,7 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
       bool cmtFontNotTrans =
           (i == id && (_style.hilited_comment_text_color & 0xff000000)) ||
           (i != id && (_style.comment_text_color & 0xff000000));
-      if (!comments.at(i).str.empty() && cmtFontValid && cmtFontNotTrans) {
+      if (_style.annotation_position != 2 && !comments.at(i).str.empty() && cmtFontValid && cmtFontNotTrans) {
         const std::wstring& comment = comments.at(i).str;
         GetTextSizeDW(comment, comment.length(), pDWR->pCommentTextFormat, pDWR,
                       &size);
@@ -122,6 +122,21 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
         current_cand_width += (size.cx + _style.hilite_spacing) * cmtFontValid;
       } else /* Used for highlighted candidate calculation below */
         _candidateCommentRects[i].SetRect(w, height, w, height + size.cy);
+
+      if (_style.annotation_position == 1 && _candidateCommentRects[i].Width()) {
+        auto& labelRect = _candidateLabelRects[i];
+        auto& textRect = _candidateTextRects[i];
+        auto& commentRect = _candidateCommentRects[i];
+        const int start = labelRect.left;
+        const int textWidth = textRect.right - start;
+        const int blockWidth = max(textWidth, commentRect.Width());
+        const int shift = commentRect.Height() + _style.hilite_spacing;
+        labelRect.OffsetRect((blockWidth - textWidth) / 2, shift);
+        textRect.OffsetRect((blockWidth - textWidth) / 2, shift);
+        commentRect.MoveToXY(start + (blockWidth - commentRect.Width()) / 2, height);
+        w = start + blockWidth;
+        current_cand_width = blockWidth;
+      }
 
       int base_left = (i == id) ? _candidateLabelRects[i].left - base_offset
                                 : _candidateLabelRects[i].left;
@@ -159,6 +174,9 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
           max(height_of_rows[row_cnt], _candidateTextRects[i].Height());
       height_of_rows[row_cnt] =
           max(height_of_rows[row_cnt], _candidateCommentRects[i].Height());
+      if (_style.annotation_position == 1)
+        height_of_rows[row_cnt] = max(height_of_rows[row_cnt],
+            max(_candidateTextRects[i].bottom, _candidateLabelRects[i].bottom) - height);
       // set row info of current candidate
       row_of_candidate[i] = row_cnt;
     }
@@ -173,7 +191,9 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
                                  mintop_of_rows[row_of_candidate[i]] +
                                      height_of_rows[row_of_candidate[i]]);
       int ol = 0, ot = 0, oc = 0;
-      if (_style.align_type == UIStyle::ALIGN_CENTER) {
+      if (_style.annotation_position == 1) {
+        // Annotation and text already form a vertically arranged block.
+      } else if (_style.align_type == UIStyle::ALIGN_CENTER) {
         ol = (height_of_rows[row_of_candidate[i]] -
               _candidateLabelRects[i].Height()) /
              2;
@@ -239,6 +259,24 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
   }
 
   // prepare temp rect _bgRect for roundinfo calculation
+  if (_style.skin_padding.size() == 4) {
+    int left = _style.skin_padding[0], top = _style.skin_padding[1];
+    _preeditRect.OffsetRect(left, top);
+    _auxiliaryRect.OffsetRect(left, top);
+    _highlightRect.OffsetRect(left, top);
+    _prePageRect.OffsetRect(left, top);
+    _nextPageRect.OffsetRect(left, top);
+    _statusIconRect.OffsetRect(left, top);
+    for (int i = 0; i < candidates_count && i < MAX_CANDIDATES_COUNT; ++i) {
+      _candidateRects[i].OffsetRect(left, top);
+      _candidateLabelRects[i].OffsetRect(left, top);
+      _candidateTextRects[i].OffsetRect(left, top);
+      _candidateCommentRects[i].OffsetRect(left, top);
+    }
+    _contentSize.cx += left + _style.skin_padding[2];
+    _contentSize.cy += top + _style.skin_padding[3];
+    _contentRect.SetRect(0, 0, _contentSize.cx, _contentSize.cy);
+  }
   CopyRect(_bgRect, _contentRect);
   _bgRect.DeflateRect(offsetX + 1, offsetY + 1);
   // prepare round info for single row status, only for single row situation

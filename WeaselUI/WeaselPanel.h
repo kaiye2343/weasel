@@ -104,6 +104,7 @@ class WeaselPanel
   void _LayerUpdate(const CRect& rc, CDCHandle dc);
   void _UpdateSkinGeometry();
   void _ReleaseSkinImages();
+  void _DrawSkinImages(Gdiplus::Graphics& graphics, CPoint origin, bool below);
   CPoint m_skin_origin = CPoint(0, 0);
   CSize m_skin_size = CSize(0, 0);
   std::vector<SkinImage> m_skin_config;
