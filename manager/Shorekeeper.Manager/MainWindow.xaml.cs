@@ -70,7 +70,9 @@ public partial class MainWindow : Window
         loading = true;
         try
         {
-            context.Root = Path.GetFullPath(RimeDirectory.Text);
+            string root = Path.GetFullPath(RimeDirectory.Text);
+            if (!root.Equals(context.Root, StringComparison.OrdinalIgnoreCase)) SaveState.Text = "已载入 · 未修改";
+            context.Root = root;
             var schemas = new RimeSettings(context.Root).Schemas(); var scopes = schemas.Select(s => new Scope(s.Id, s.Name + " · " + s.Id)).Prepend(new Scope(null, "全局默认")).ToList();
             ScopeSelector.ItemsSource = scopes; ScopeSelector.SelectedItem = scopes.FirstOrDefault(s => s.Id == context.Schema) ?? scopes[0]; context.Schema = ((Scope)ScopeSelector.SelectedItem).Id;
             if (Navigation.SelectedIndex < 0) Navigation.SelectedIndex = 0;
@@ -100,7 +102,7 @@ public partial class MainWindow : Window
         try { activePage = pages.Create(module.Id); PageHost.Content = activePage; }
         catch (Exception e) { StatusText.Text = "页面未载入：" + e.Message; PageHost.Content = Elements.Card(Elements.Text("无法读取设置，请检查配置目录及 YAML 格式。\n" + e.Message, 16)); }
         PreviewButton.IsEnabled = SaveButton.IsEnabled = activePage is ISettingsPage;
-        if (SaveState.Text != "已保存待部署") SaveState.Text = "已载入 · 未修改";
+        if (SaveState.Text == "尚未保存") SaveState.Text = "已载入 · 未修改";
     }
     async void PreviewChanges(object sender, RoutedEventArgs e) => await context.Run(this, () =>
     {

@@ -81,6 +81,11 @@ try
     Check(baseAfter.Contains("custom_extra") && baseAfter.Contains("unrelated: keep-base") && !baseAfter.Contains("switches/@"), "Wanxiang base changes only edited option");
     baseSettings.PinyinMode = "小鹤双拼"; new ConfigurationPlan(profiles.PreviewScheme("wanxiang", baseSettings)).Save(profilesRoot);
     Check(File.ReadAllText(baseCustom).Contains("custom_extra") && profiles.LoadScheme("wanxiang").PinyinMode == "小鹤双拼", "Wanxiang mode preserves unrelated algebra references");
+    string inheritedRoot = Path.Combine(temp, "inherited-scenes"); Directory.CreateDirectory(inheritedRoot);
+    File.Copy(Path.Combine(profilesRoot, "wanxiang.schema.yaml"), Path.Combine(inheritedRoot, "wanxiang.schema.yaml"));
+    File.WriteAllText(Path.Combine(inheritedRoot, "default.yaml"), "schema_list:\n  - schema: wanxiang\n  - schema: plain\n");
+    new RimeProfiles(inheritedRoot).Create("work");
+    Check(new RimeSettings(inheritedRoot).Schemas().Where(s => s.Enabled).Select(s => s.Id).SequenceEqual(new[] { "wanxiang", "plain", "wanxiang_work" }), "scene creation preserves inherited enabled schemas");
     string import = Path.Combine(temp, "words.tsv"); File.WriteAllText(import, "守岸人\tshou an ren\t100\n"); profiles.ImportDictionary("work", import); profiles.ImportDictionary("work", import);
     Check(File.ReadAllLines(Path.Combine(profilesRoot, "work.dict.yaml")).Count(l => l.StartsWith("守岸人\t")) == 1, "word import deduplicates");
     Reject(() => profiles.WriteBatchBackedUp(new Dictionary<string, string> { [workCustom] = "changed", [Path.Combine(temp, "escape")] = "bad" }), "reject batch outside profile root");

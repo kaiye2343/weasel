@@ -196,7 +196,16 @@ public sealed class RimeProfiles
         patch.Add($"switches/@{FindSwitch(Switches(doc), "context_reorder")}/reset", "1");
         patch.Add("translator/packs", new YamlSequenceNode(new YamlScalarNode(id)));
         var defaults = Read(Path.Combine(Root, "default.custom.yaml")); var defaultPatch = Map(defaults, "patch");
-        if (!defaultPatch.Children.TryGetValue("schema_list", out var node) || node is not YamlSequenceNode list) throw new InvalidDataException("default.custom.yaml缺少显式方案列表；请先在原配置中设置列表。");
+        if (!defaultPatch.Children.TryGetValue("schema_list", out var node))
+        {
+            var reader = new RimeSettings(Root);
+            var definition = new SettingDefinition("schemas", "schema_list", "方案列表", "yaml-sequence", "[]", "");
+            if (!reader.Read(definition, null).Supported) throw new InvalidDataException("方案列表包含复杂补丁，请先人工审阅。");
+            var existing = reader.Schemas().Where(s => s.Enabled).ToList();
+            if (existing.Count == 0) throw new InvalidDataException("没有可读取的原方案列表；请先启用基础方案。");
+            node = new YamlSequenceNode(existing.Select(s => new YamlMappingNode { { "schema", s.Id } })); defaultPatch.Add("schema_list", node);
+        }
+        if (node is not YamlSequenceNode list) throw new InvalidDataException("原方案列表格式不支持。");
         list.Add(new YamlMappingNode { { "schema", "wanxiang_" + id } });
         WriteBatchBackedUp(new Dictionary<string, string>
         {
