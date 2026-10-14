@@ -23,6 +23,12 @@ static class SettingsTests
         check(after.Contains("unknown: keep") && after.Contains("Shift_R: noop") && service.Read(shift, null).Value == "noop", "targeted patch preserves siblings and unknown nodes");
         check(File.Exists(Path.Combine(backup, "changes.json")), "save creates reviewed change record");
         RimeSettings.Restore(root, backup); check(File.ReadAllText(Path.Combine(root, "default.custom.yaml")) == before, "configuration restore exact original bytes");
+        var horizontal = RimeSettings.Definitions.Single(d => d.WeaselOnly);
+        var newFilePlan = new RimeSettings(root).Preview(null, [(horizontal, "true")]);
+        string newFileBackup = newFilePlan.Save(root);
+        var restorePlan = RimeSettings.PreviewRestore(root, newFileBackup);
+        check(restorePlan.Changes.Single().After == null && File.Exists(Path.Combine(root, "weasel.custom.yaml")), "restore previews removal of newly created file without deleting");
+        restorePlan.Save(root); check(!File.Exists(Path.Combine(root, "weasel.custom.yaml")), "confirmed first-save restore returns file to absent state");
         service = new(root); service.Read(count, null);
         File.AppendAllText(Path.Combine(root, "default.custom.yaml"), "# external change\n");
         reject(() => service.Preview(null, [(count, "8")]), "reject changes since load");

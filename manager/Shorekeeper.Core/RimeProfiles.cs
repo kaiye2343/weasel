@@ -48,6 +48,8 @@ public sealed class RimeProfiles
     public string WriteBackedUp(string path, string content)
         => WriteBatchBackedUp(new Dictionary<string, string> { [path] = content });
     public string WriteBatchBackedUp(IReadOnlyDictionary<string, string> changes)
+        => WriteChangesBackedUp(changes.ToDictionary(c => c.Key, c => (string?)c.Value));
+    public string WriteChangesBackedUp(IReadOnlyDictionary<string, string?> changes)
     {
         var files = changes.Select(p => (Path: Path.GetFullPath(p.Key), Text: p.Value)).ToList();
         if (files.Any(f => !f.Path.StartsWith(Root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) ||
@@ -56,7 +58,7 @@ public sealed class RimeProfiles
         Directory.CreateDirectory(Root);
         string backup = Path.Combine(Root, "backups", "shorekeeper", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(backup);
-        var staged = new List<(string Path, string Temp, string? Backup)>();
+        var staged = new List<(string Path, string? Temp, string? Backup)>();
         var committed = new List<(string Path, string? Backup)>();
         try
         {
@@ -65,12 +67,12 @@ public sealed class RimeProfiles
                 Directory.CreateDirectory(Path.GetDirectoryName(file.Path)!);
                 string? previous = File.Exists(file.Path) ? Path.Combine(backup, Path.GetRelativePath(Root, file.Path)) : null;
                 if (previous != null) { Directory.CreateDirectory(Path.GetDirectoryName(previous)!); File.Copy(file.Path, previous); }
-                string temp = file.Path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-                staged.Add((file.Path, temp, previous)); File.WriteAllText(temp, file.Text, new UTF8Encoding(false));
+                string? temp = file.Text == null ? null : file.Path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                staged.Add((file.Path, temp, previous)); if (temp != null) File.WriteAllText(temp, file.Text, new UTF8Encoding(false));
             }
             SkinJson.WriteAtomic(Path.Combine(backup, "restore-index.json"), staged.Select(f => new { RelativePath = Path.GetRelativePath(Root, f.Path), Existed = f.Backup != null }));
             SkinJson.WriteAtomic(Path.Combine(backup, "changes.json"), files.Select(f => new { File = Path.GetRelativePath(Root, f.Path), Before = File.Exists(f.Path) ? File.ReadAllText(f.Path) : "", After = f.Text }));
-            foreach (var file in staged) { File.Move(file.Temp, file.Path, true); committed.Add((file.Path, file.Backup)); }
+            foreach (var file in staged) { if (file.Temp != null) File.Move(file.Temp, file.Path, true); else File.Delete(file.Path); committed.Add((file.Path, file.Backup)); }
         }
         catch
         {
@@ -78,7 +80,7 @@ public sealed class RimeProfiles
                 if (file.Backup != null) File.Copy(file.Backup, file.Path, true); else File.Delete(file.Path);
             throw;
         }
-        finally { foreach (var file in staged) if (File.Exists(file.Temp)) File.Delete(file.Temp); }
+        finally { foreach (var file in staged) if (file.Temp != null && File.Exists(file.Temp)) File.Delete(file.Temp); }
         return backup;
     }
     string Schema(string id) { ValidateId(id); return Path.Combine(Root, $"wanxiang_{id}.schema.yaml"); }
@@ -120,7 +122,7 @@ public sealed class RimeProfiles
         return result;
     }
     public string Apply(string id, InputSettings settings)
-        => WriteBatchBackedUp(PreviewScheme("wanxiang_" + id, settings).ToDictionary(c => c.Path, c => c.After));
+        => WriteBatchBackedUp(PreviewScheme("wanxiang_" + id, settings).ToDictionary(c => c.Path, c => c.After!));
     public IReadOnlyList<ConfigChange> PreviewScheme(string schemaId, InputSettings settings)
     {
         bool scene = schemaId.StartsWith("wanxiang_");
@@ -209,7 +211,7 @@ public sealed class RimeProfiles
     {
         ValidateId(id);
         var change = PreviewDictionary(Path.Combine(Root, id + ".dict.yaml"), source);
-        WriteBackedUp(change.Path, change.After);
+        WriteBackedUp(change.Path, change.After!);
     }
     public ConfigChange PreviewDictionary(string path, string source)
     {

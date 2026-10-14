@@ -23,8 +23,9 @@ public sealed class BackupPage : UserControl
         panel.Children.Add(Elements.Button("恢复选中的配置", async () => await context.Run(this, () =>
         {
             if (list.SelectedItem is not string directory) throw new InvalidOperationException("请选择备份。");
-            if (MessageBox.Show("先备份当前配置，再恢复选中的原文件。不会自动部署。", "恢复配置", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return Task.CompletedTask;
-            RimeSettings.Restore(context.Root, directory); context.MarkSaved(); context.Report("配置已恢复待部署。当前文件也已备份。"); return Task.CompletedTask;
+            var plan = RimeSettings.PreviewRestore(context.Root, directory);
+            if (!ChangeReview.Confirm(plan, "确认文件变更并备份恢复")) return Task.CompletedTask;
+            plan.Save(context.Root); context.MarkSaved(); context.Report("配置已恢复待部署。当前文件也已备份。"); return Task.CompletedTask;
         })));
         Content = Elements.Scroll(Elements.Card(panel));
     }

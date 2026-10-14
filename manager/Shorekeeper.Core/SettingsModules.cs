@@ -25,7 +25,7 @@ public sealed record SettingDefinition(string Module, string Key, string Label, 
     string DefaultValue, string Help, string[]? Choices = null, bool WeaselOnly = false, bool GlobalOnly = false);
 public sealed record SettingValue(SettingDefinition Definition, string Value, string Source, bool Supported = true);
 public sealed record SchemaInfo(string Id, string Name, string Version, string Author, string Dependencies, string Source, bool Enabled);
-public sealed record ConfigChange(string Path, string Before, string After);
+public sealed record ConfigChange(string Path, string Before, string? After);
 public sealed class ConfigurationPlan(IReadOnlyList<ConfigChange> changes)
 {
     public IReadOnlyList<ConfigChange> Changes { get; } = changes;
@@ -35,7 +35,7 @@ public sealed class ConfigurationPlan(IReadOnlyList<ConfigChange> changes)
             if ((File.Exists(change.Path) ? File.ReadAllText(change.Path) : "") != change.Before)
                 throw new IOException("配置在预览后发生变化，请重新载入：" + Path.GetFileName(change.Path));
         if (Changes.Count == 0) throw new InvalidOperationException("没有需要保存的修改。");
-        string backup = new RimeProfiles(root).WriteBatchBackedUp(Changes.ToDictionary(c => c.Path, c => c.After));
+        string backup = new RimeProfiles(root).WriteChangesBackedUp(Changes.ToDictionary(c => c.Path, c => c.After));
         return backup;
     }
 }
@@ -220,15 +220,18 @@ public sealed class RimeSettings
         try { File.Copy(source, stage); File.Move(stage, target); } finally { if (File.Exists(stage)) File.Delete(stage); }
         return target;
     }
-    public static void Restore(string root, string backup)
+    public static ConfigurationPlan PreviewRestore(string root, string backup)
     {
         string allowed = Path.GetFullPath(Path.Combine(root, "backups", "shorekeeper")) + Path.DirectorySeparatorChar;
         if (!Path.GetFullPath(backup).StartsWith(allowed, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("请选择本目录生成的配置备份。");
         var index = SkinJson.Read<List<RestoreFile>>(Path.Combine(backup, "restore-index.json"));
-        // A restore never deletes files created by a previous save: that requires separate confirmation.
-        if (index.Any(f => !f.Existed)) throw new InvalidDataException("此备份包含此前不存在的文件，请人工审阅后恢复；不会自动删除配置。");
-        var changes = index.ToDictionary(f => SkinStore.ResolveAsset(root, f.RelativePath.Replace('\\', '/')), f => File.ReadAllText(SkinStore.ResolveAsset(backup, f.RelativePath.Replace('\\', '/'))));
-        new RimeProfiles(root).WriteBatchBackedUp(changes);
+        var changes = index.Select(f =>
+        {
+            string target = SkinStore.ResolveAsset(root, f.RelativePath.Replace('\\', '/'));
+            return new ConfigChange(target, File.Exists(target) ? File.ReadAllText(target) : "", f.Existed ? File.ReadAllText(SkinStore.ResolveAsset(backup, f.RelativePath.Replace('\\', '/'))) : null);
+        }).Where(c => c.After == null ? File.Exists(c.Path) : c.Before != c.After).ToList();
+        return new(changes);
     }
+    public static void Restore(string root, string backup) => PreviewRestore(root, backup).Save(root);
     public sealed class RestoreFile { public string RelativePath { get; set; } = ""; public bool Existed { get; set; } }
 }
