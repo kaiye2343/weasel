@@ -89,7 +89,7 @@ public static class RimeSnapshots
         await runner.RunAsync("deploy"); await runner.RunAsync("sync");
     }
     static bool RegexName(string name) => System.Text.RegularExpressions.Regex.IsMatch(name, "^((wanxiang|shortcuts)_[a-z0-9_]+\\.(schema|custom)\\.yaml|[a-z0-9_]+\\.dict\\.yaml|shortcuts_[a-z0-9_]+\\.txt)$");
-    public static string CollectDiagnostics(string root, string storage)
+    public static string CollectDiagnostics(string root, string storage, bool runtimeCaptured = false)
     {
         string directory = Path.Combine(storage, "diagnostics", DateTime.Now.ToString("yyyyMMdd-HHmmss-fffffff")); Directory.CreateDirectory(directory);
         var metadata = new List<object>();
@@ -99,7 +99,8 @@ public static class RimeSnapshots
         }
         SkinJson.WriteAtomic(Path.Combine(directory, "processes.json"), metadata);
         string runtime = Path.Combine(storage, "runtime.json");
-        if (File.Exists(runtime)) File.Copy(runtime, Path.Combine(directory, "runtime.json"));
+        if (runtimeCaptured && File.Exists(runtime)) File.Copy(runtime, Path.Combine(directory, "runtime.json"));
+        SkinJson.WriteAtomic(Path.Combine(directory, "capture-status.json"), new { RuntimeCaptured = runtimeCaptured, CapturedAtUtc = DateTime.UtcNow });
         var hashes = new Dictionary<string, string>();
         foreach (string rel in new[] { "installation.yaml", "user.yaml", "default.custom.yaml", "weasel.custom.yaml", "build/default.yaml", "build/weasel.yaml" })
         {

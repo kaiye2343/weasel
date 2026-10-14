@@ -19,6 +19,7 @@ static bool long_text = false;
 static std::filesystem::path manifest;
 static std::string variant;
 static std::filesystem::path overrides;
+static int smoke_frames = 0;
 static bool LayoutTests(HWND window) {
   CClientDC dc(window);
   weasel::Context sample; weasel::Status state; state.composing = true;
@@ -62,8 +63,13 @@ static void UpdatePreview(HWND window) {
 }
 static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
   switch (message) {
-    case WM_CREATE: SetTimer(hwnd, 1, 1500, nullptr); break;
-    case WM_TIMER: long_text = !long_text; UpdatePreview(hwnd); break;
+    case WM_CREATE: SetTimer(hwnd, 1, smoke_frames ? 50 : 1500, nullptr); break;
+    case WM_TIMER:
+      long_text = !long_text;
+      if (smoke_frames) ui.style().annotation_position = smoke_frames % 3;
+      UpdatePreview(hwnd);
+      if (smoke_frames && --smoke_frames == 0) DestroyWindow(hwnd);
+      break;
     case WM_MOVE: if (ui.pdwr()) UpdatePreview(hwnd); break;
     case WM_KEYDOWN:
       if (w == '1' || w == '2' || w == '3') { ui.style().annotation_position = w - '1'; ui.Refresh(); }
@@ -89,6 +95,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     if (!wcscmp(args[i], L"--manifest")) manifest = args[i + 1];
     if (!wcscmp(args[i], L"--variant")) variant = wtou8(args[i + 1]);
     if (!wcscmp(args[i], L"--style-overrides")) overrides = args[i + 1];
+    if (!wcscmp(args[i], L"--smoke")) smoke_frames = 20;
   }
   LocalFree(args);
   WNDCLASSW cls{}; cls.hInstance = instance; cls.lpfnWndProc = WindowProc;

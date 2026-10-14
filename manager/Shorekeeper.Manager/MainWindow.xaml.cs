@@ -204,9 +204,9 @@ public partial class MainWindow : Window
     });
     async void CollectDiagnostics(object sender, RoutedEventArgs e) => await Work(async () =>
     {
-        string root = RimeDirectory.Text;
-        try { await new RimeProcess(ToolDirectory).RunAsync("diagnostics", lifetime.Token); } catch (IOException) { }
-        string directory = await Task.Run(() => RimeSnapshots.CollectDiagnostics(root, store.Root)); DiagnosticResult.Text = directory;
+        string root = RimeDirectory.Text; bool runtimeCaptured = false;
+        try { await new RimeProcess(ToolDirectory).RunAsync("diagnostics", lifetime.Token); runtimeCaptured = true; } catch (IOException) { }
+        string directory = await Task.Run(() => RimeSnapshots.CollectDiagnostics(root, store.Root, runtimeCaptured)); DiagnosticResult.Text = directory;
         StatusText.Text = "诊断现场已保存；未重启小狼毫。";
     });
 }
