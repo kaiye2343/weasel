@@ -1,4 +1,4 @@
-name: Shorekeeper build
+name: Rime Weasel build
 
 on:
   workflow_dispatch:
@@ -40,6 +40,18 @@ jobs:
         run: |
           dotnet publish manager/Shorekeeper.Manager -c Release -r win-x64 --self-contained true -o output/archives/tools
           if ($LASTEXITCODE -ne 0) { throw 'Manager publish failed' }
+      - name: Test settings pages with isolated data
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .tools/settings-smoke/rime | Out-Null
+          Copy-Item tests/settings-fixture/* .tools/settings-smoke/rime/
+          $root = "$env:GITHUB_WORKSPACE/.tools/settings-smoke"
+          $test = Start-Process output/archives/tools/Shorekeeper.Manager.exe -ArgumentList @('--rime-root', "$root/rime", '--data-root', "$root/skins", '--preview-mode', '--ui-smoke', '--capture-image', "$env:GITHUB_WORKSPACE/output/archives/settings-center.png") -WindowStyle Hidden -PassThru
+          if (!$test.WaitForExit(60000)) { throw 'Settings UI smoke timed out' }
+          if ($test.ExitCode -ne 0) {
+            if (Test-Path "$root/skins/ui-smoke-error.txt") { Get-Content "$root/skins/ui-smoke-error.txt" }
+            throw "Settings UI smoke failed: $($test.ExitCode)"
+          }
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Configure VS 2022
         shell: pwsh
@@ -99,6 +111,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Native preview build failed' }
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--layout-test' -WindowStyle Hidden -PassThru -Wait
           if ($test.ExitCode -ne 0) { throw "Native annotation/DPI layout tests failed: $($test.ExitCode)" }
+          $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--preferences-test' -WindowStyle Hidden -PassThru -Wait
+          if ($test.ExitCode -ne 0) { throw "Native display preferences tests failed: $($test.ExitCode)" }
+          $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--smoke', 'true') -WindowStyle Hidden -PassThru -Wait
+          if ($test.ExitCode -ne 0) { throw "Native no-skin preview failed: $($test.ExitCode)" }
+          foreach ($variant in @('light', 'dark')) {
+            $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--manifest', "$env:GITHUB_WORKSPACE/skins/neutral/manifest.json", '--variant', $variant, '--smoke', 'true') -WindowStyle Hidden -PassThru -Wait
+            if ($test.ExitCode -ne 0) { throw "Native pure-color skin failed: $($test.ExitCode)" }
+          }
           foreach ($variant in @('plush', 'watermelon', 'butterfly')) {
             $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--manifest', "$env:GITHUB_WORKSPACE/skins/shorekeeper/manifest.json", '--variant', $variant, '--smoke', 'true') -WindowStyle Hidden -PassThru -Wait
             if ($test.ExitCode -ne 0) { throw "Native skin load/redraw failed for $variant`: $($test.ExitCode)" }
@@ -108,6 +128,8 @@ jobs:
             Copy-Item "output/$file" output/archives/tools/
           }
           ./tools/pack-skin.ps1
+          ./tools/pack-skin.ps1 -Source skins/neutral -Destination output/archives/neutral-1.0.0.rimeskin
+          Copy-Item docs/SETTINGS-CENTER.md output/archives/SETTINGS-CENTER.md
           Copy-Item docs/SHOREKEEPER.md output/archives/SHOREKEEPER.md
           Copy-Item docs/skin-format.md output/archives/skin-format.md
           Copy-Item docs/rimeskin.schema.json output/archives/rimeskin.schema.json
@@ -130,5 +152,6 @@ jobs:
           path: |
             msbuild*.log
             .tools/native-learning/
+            .tools/settings-smoke/skins/ui-smoke-error.txt
           if-no-files-found: ignore
           retention-days: 7

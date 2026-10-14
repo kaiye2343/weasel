@@ -10,6 +10,7 @@
 #include <ShellScalingApi.h>
 #pragma comment(lib, "Shcore.lib")
 #include <fstream>
+#include <stdexcept>
 
 CAppModule _Module;
 static weasel::UI ui;
@@ -20,6 +21,35 @@ static std::filesystem::path manifest;
 static std::string variant;
 static std::filesystem::path overrides;
 static int smoke_frames = 0;
+static bool PreferenceTests() {
+  wchar_t previous[32768] = {}; GetEnvironmentVariableW(L"LOCALAPPDATA", previous, 32768);
+  auto temporary = std::filesystem::absolute(std::filesystem::temp_directory_path());
+  auto sandbox = temporary / (L"RimePreviewPreferences-" + std::to_wstring(GetCurrentProcessId()));
+  if (sandbox.parent_path() != temporary || std::filesystem::exists(sandbox)) return false;
+  std::filesystem::create_directories(sandbox / L"ShorekeeperWeasel");
+  SetEnvironmentVariableW(L"LOCALAPPDATA", sandbox.c_str());
+  bool passed = false;
+  try {
+    auto root = weasel::SkinDataRoot();
+    auto write = [](const std::filesystem::path& path, const char* value) { std::ofstream stream(path); stream << value; };
+    auto style = ui.style(); std::string error;
+    write(root / L"display.json", R"({"schemaVersion":1,"annotationPosition":"above"})");
+    if (!weasel::LoadActiveSkin(style, error) || style.annotation_position != 1) throw std::runtime_error("No-skin preference failed");
+    auto skin = root / L"skins" / L"neutral" / L"1.0.0"; std::filesystem::create_directories(skin);
+    write(skin / L"manifest.json", R"({"schemaVersion":1,"minEngineVersion":"1.0","variants":[{"id":"plain","style":{"annotationPosition":"beside"},"layers":[]}]})");
+    write(root / L"state.json", R"({"schemaVersion":1,"skinId":"neutral","skinVersion":"1.0.0","variantId":"plain","styleOverride":{"annotationPosition":"hidden","fontPoint":21}})");
+    if (!weasel::LoadActiveSkin(style, error) || style.annotation_position != 1 || style.font_point != 21 || !style.skin_images.empty()) throw std::runtime_error("Legacy/pure skin preference failed");
+    write(root / L"display.json", R"({"schemaVersion":1,"annotationPosition":"skin"})");
+    if (!weasel::LoadActiveSkin(style, error) || style.annotation_position != 2) throw std::runtime_error("Follow-skin failed");
+    write(root / L"display.json", R"({"schemaVersion":1,"annotationPosition":"invalid"})");
+    auto before = style;
+    if (weasel::LoadActiveSkin(style, error) || style != before) throw std::runtime_error("Failure modified style");
+    passed = true;
+  } catch (...) { passed = false; }
+  SetEnvironmentVariableW(L"LOCALAPPDATA", *previous ? previous : nullptr);
+  if (sandbox.parent_path() == temporary) std::filesystem::remove_all(sandbox);
+  return passed;
+}
 static bool LayoutTests(HWND window) {
   CClientDC dc(window);
   weasel::Context sample; weasel::Status state; state.composing = true;
@@ -97,6 +127,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED); _Module.Init(nullptr, instance);
   int count = 0; LPWSTR* args = CommandLineToArgvW(GetCommandLineW(), &count);
   bool layout_test = count == 2 && !wcscmp(args[1], L"--layout-test");
+  bool preference_test = count == 2 && !wcscmp(args[1], L"--preferences-test");
   for (int i = 1; i + 1 < count; i += 2) {
     if (!wcscmp(args[i], L"--manifest")) manifest = args[i + 1];
     if (!wcscmp(args[i], L"--variant")) variant = wtou8(args[i + 1]);
@@ -107,7 +138,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   WNDCLASSW cls{}; cls.hInstance = instance; cls.lpfnWndProc = WindowProc;
   cls.lpszClassName = L"ShorekeeperNativePreview"; cls.hCursor = LoadCursor(nullptr, IDC_ARROW);
   cls.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1); RegisterClassW(&cls);
-  HWND window = CreateWindowW(cls.lpszClassName, L"守岸人 · 原生皮肤预览", WS_OVERLAPPEDWINDOW,
+  HWND window = CreateWindowW(cls.lpszClassName, L"Rime · 原生皮肤预览", WS_OVERLAPPEDWINDOW,
                               CW_USEDEFAULT, CW_USEDEFAULT, 1000, 650, nullptr, nullptr, instance, nullptr);
   auto& style = ui.style();
   style.font_face = style.label_font_face = style.comment_font_face = L"Microsoft YaHei UI";
@@ -123,8 +154,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   if (layout_test) {
     bool passed = LayoutTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 4;
   }
+  if (preference_test) {
+    bool passed = PreferenceTests(); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 5;
+  }
   std::string error;
-  if (!weasel::LoadSkinManifest(manifest, variant, style, error, overrides)) {
+  if (!manifest.empty() && !weasel::LoadSkinManifest(manifest, variant, style, error, overrides)) {
     MessageBoxW(window, u8tow(error).c_str(), L"皮肤加载失败", MB_ICONERROR);
     DestroyWindow(window); _Module.Term(); CoUninitialize(); return 1;
   }

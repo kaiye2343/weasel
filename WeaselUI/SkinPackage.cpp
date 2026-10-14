@@ -142,10 +142,20 @@ bool LoadSkinManifest(const std::filesystem::path& manifest,
 bool LoadActiveSkin(UIStyle& style, std::string& error) {
   try {
     auto root = SkinDataRoot(); auto statePath = root / L"state.json";
-    if (!std::filesystem::exists(statePath)) return true;
+    auto applyDisplay = [&root](UIStyle& target) {
+      auto path = root / L"display.json";
+      if (!std::filesystem::exists(path)) return;
+      auto data = ReadObject(path);
+      if (data.at("schemaVersion").as_int64() != 1) throw std::runtime_error("Unsupported display preference version");
+      auto position = String(data, "annotationPosition");
+      if (position == "skin") return;
+      if (position != "above" && position != "beside" && position != "hidden") throw std::runtime_error("Unknown display annotation position");
+      target.annotation_position = position == "above" ? 1 : position == "hidden" ? 2 : 0;
+    };
+    if (!std::filesystem::exists(statePath)) { UIStyle next = style; applyDisplay(next); style = std::move(next); error.clear(); return true; }
     auto state = ReadObject(statePath);
     if (state.at("schemaVersion").as_int64() != 1) throw std::runtime_error("Unsupported selection version");
-    if (!state.if_contains("skinId") || state.at("skinId").is_null()) return true;
+    if (!state.if_contains("skinId") || state.at("skinId").is_null()) { UIStyle next = style; applyDisplay(next); style = std::move(next); error.clear(); return true; }
     auto id = String(state, "skinId"), version = String(state, "skinVersion");
     if (!std::regex_match(id, std::regex("[a-z0-9][a-z0-9._-]{0,63}")) || id.find("..") != std::string::npos ||
         !std::regex_match(version, std::regex("[0-9]+\\.[0-9]+\\.[0-9]+"))) throw std::runtime_error("Invalid skin identity");
@@ -156,6 +166,7 @@ bool LoadActiveSkin(UIStyle& style, std::string& error) {
     long long bytes = next.skin_frame_image.empty() ? 0 : ImageBytes(next.skin_frame_image);
     for (const auto& image : next.skin_images) bytes += ImageBytes(image.path);
     if (bytes > 64LL * 1024 * 1024) throw std::runtime_error("Decoded skin exceeds 64MiB");
+    applyDisplay(next);
     style = std::move(next); error.clear(); return true;
   } catch (const std::exception& e) { error = e.what(); return false; }
 }

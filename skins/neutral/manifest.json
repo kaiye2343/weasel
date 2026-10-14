@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "neutral",
+  "name": "简洁纯色",
+  "author": "Rime 设置中心示例",
+  "version": "1.0.0",
+  "minEngineVersion": "1.0",
+  "preview": "preview.png",
+  "variants": [
+    {
+      "id": "light",
+      "name": "浅色",
+      "style": {
+        "fontFace": "Microsoft YaHei UI", "fontPoint": 16,
+        "annotationPosition": "beside", "backgroundColor": "#FFF9FAFC",
+        "textColor": "#FF26313D", "commentColor": "#FF697687",
+        "highlightColor": "#FFE0EDF8", "highlightTextColor": "#FF185D92",
+        "borderColor": "#FFE1E5EA", "borderWidth": 1, "borderStyle": "solid"
+      },
+      "layers": []
+    },
+    {
+      "id": "dark",
+      "name": "深色",
+      "style": {
+        "fontFace": "Microsoft YaHei UI", "fontPoint": 16,
+        "annotationPosition": "beside", "backgroundColor": "#FF252B34",
+        "textColor": "#FFF3F5F8", "commentColor": "#FFB3BFCD",
+        "highlightColor": "#FF334F68", "highlightTextColor": "#FFE3F1FF",
+        "borderColor": "#FF455260", "borderWidth": 1, "borderStyle": "solid"
+      },
+      "layers": []
+    }
+  ]
+}
