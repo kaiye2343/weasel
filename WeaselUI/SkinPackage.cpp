@@ -88,12 +88,12 @@ void ApplyStyle(const Object& spec, const std::filesystem::path& root, UIStyle& 
     const auto& f = frame->as_object();
     s.skin_frame_image = Asset(root, String(f, "path")).wstring();
     ImageBytes(s.skin_frame_image);
-    Gdiplus::Bitmap frame(s.skin_frame_image.c_str());
+    Gdiplus::Bitmap frameBitmap(s.skin_frame_image.c_str());
     const auto& slice = f.at("slice").as_array();
     if (slice.size() != 4) throw std::runtime_error("Four frame slices required");
     for (auto& n : slice) { auto v = n.as_int64(); if (v < 0 || v > 2048) throw std::runtime_error("Invalid frame slice"); s.skin_frame_slice.push_back((int)v); }
-    if (s.skin_frame_slice[0] + s.skin_frame_slice[2] >= (int)frame.GetWidth() ||
-        s.skin_frame_slice[1] + s.skin_frame_slice[3] >= (int)frame.GetHeight())
+    if (s.skin_frame_slice[0] + s.skin_frame_slice[2] >= (int)frameBitmap.GetWidth() ||
+        s.skin_frame_slice[1] + s.skin_frame_slice[3] >= (int)frameBitmap.GetHeight())
       throw std::runtime_error("Empty frame center");
   }
 }

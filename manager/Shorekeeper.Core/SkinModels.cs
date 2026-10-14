@@ -5,20 +5,32 @@ namespace Shorekeeper.Core;
 
 public sealed class SkinManifest
 {
+    [JsonRequired]
     public int SchemaVersion { get; set; } = 1;
+    [JsonRequired]
     public string Id { get; set; } = "";
+    [JsonRequired]
     public string Name { get; set; } = "";
+    [JsonRequired]
     public string Author { get; set; } = "";
+    [JsonRequired]
     public string Version { get; set; } = "";
+    [JsonRequired]
     public string MinEngineVersion { get; set; } = "1.0";
+    [JsonRequired]
     public string Preview { get; set; } = "";
+    [JsonRequired]
     public List<SkinVariant> Variants { get; set; } = [];
 }
 public sealed class SkinVariant
 {
+    [JsonRequired]
     public string Id { get; set; } = "";
+    [JsonRequired]
     public string Name { get; set; } = "";
+    [JsonRequired]
     public SkinStyle Style { get; set; } = new();
+    [JsonRequired]
     public List<SkinLayer> Layers { get; set; } = [];
 }
 public sealed class SkinStyle

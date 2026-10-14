@@ -140,14 +140,19 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
 
       int base_left = (i == id) ? _candidateLabelRects[i].left - base_offset
                                 : _candidateLabelRects[i].left;
+      if (_style.annotation_position == 1)
+        base_left = min(base_left, _candidateCommentRects[i].left);
+      const int candidate_right = max(_candidateTextRects[i].right,
+                                      _candidateCommentRects[i].right);
       // if not the first candidate of current row, and current candidate's
       // right > _style.max_width
       if (_style.max_width > 0 && (base_left > real_margin_x + offsetX) &&
-          (_candidateCommentRects[i].right - offsetX + real_margin_x >
+          (candidate_right - offsetX + real_margin_x >
            _style.max_width)) {
         // max_width_of_rows current row
         max_width_of_rows =
-            max(max_width_of_rows, _candidateCommentRects[i - 1].right);
+            max(max_width_of_rows, max(_candidateCommentRects[i - 1].right,
+                                      _candidateTextRects[i - 1].right));
         w = offsetX + real_margin_x + (i == id ? base_offset : 0);
         int ofx = w - _candidateLabelRects[i].left;
         int ofy = height_of_rows[row_cnt] + _style.candidate_spacing;
@@ -158,7 +163,8 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
         // max width of next row, if it's the last candidate, make sure
         // max_width_of_rows calc right
         max_width_of_rows =
-            max(max_width_of_rows, _candidateCommentRects[i].right);
+            max(max_width_of_rows, max(_candidateCommentRects[i].right,
+                                      _candidateTextRects[i].right));
         mintop_of_rows[row_cnt] = height;
         height += ofy;
         // re calc rect position, decrease offsetX for origin
@@ -186,8 +192,11 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
     for (auto i = 0; i < candidates_count && i < MAX_CANDIDATES_COUNT; ++i) {
       int base_left = (i == id) ? _candidateLabelRects[i].left - base_offset
                                 : _candidateLabelRects[i].left;
+      if (_style.annotation_position == 1)
+        base_left = min(base_left, _candidateCommentRects[i].left);
       _candidateRects[i].SetRect(base_left, mintop_of_rows[row_of_candidate[i]],
-                                 _candidateCommentRects[i].right,
+                                 max(_candidateTextRects[i].right,
+                                     _candidateCommentRects[i].right),
                                  mintop_of_rows[row_of_candidate[i]] +
                                      height_of_rows[row_of_candidate[i]]);
       int ol = 0, ot = 0, oc = 0;
@@ -291,7 +300,8 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
       if (row_of_candidate[i] == row_cnt &&
           row_of_candidate[i - 1] == row_cnt - 1)
         _roundInfo[i].IsBottomLeftNeedToRound = true;
-      if (row_of_candidate[i] == 0 && row_of_candidate[i + 1] == 1)
+      if (i + 1 < candidates_count && i + 1 < MAX_CANDIDATES_COUNT &&
+          row_of_candidate[i] == 0 && row_of_candidate[i + 1] == 1)
         _roundInfo[i].IsTopRightNeedToRound = _style.inline_preedit;
     }
   }

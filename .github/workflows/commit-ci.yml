@@ -97,6 +97,8 @@ jobs:
           }
           msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$env:GITHUB_WORKSPACE\"
           if ($LASTEXITCODE -ne 0) { throw 'Native preview build failed' }
+          $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--layout-test' -WindowStyle Hidden -PassThru -Wait
+          if ($test.ExitCode -ne 0) { throw "Native annotation/DPI layout tests failed: $($test.ExitCode)" }
           foreach ($file in @('WeaselSkinPreview.exe', 'WeaselServer.exe', 'rime.dll', 'WinSparkle.dll')) {
             if (!(Test-Path "output/$file")) { throw "Missing tool dependency: $file" }
             Copy-Item "output/$file" output/archives/tools/
@@ -115,3 +117,12 @@ jobs:
           path: output/archives/
           if-no-files-found: error
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: shorekeeper-failure-${{ github.sha }}
+          path: |
+            msbuild*.log
+            .tools/native-learning/
+          if-no-files-found: ignore
+          retention-days: 7

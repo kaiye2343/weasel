@@ -1,8 +1,11 @@
 #include <atlbase.h>
 #include <atlwin.h>
 #include <wtl/atlapp.h>
+#include <wtl/atlgdi.h>
+#include <wtl/atlmisc.h>
 #include <WeaselUI.h>
 #include <WeaselSkin.h>
+#include "../WeaselUI/HorizontalLayout.h"
 #include <shellapi.h>
 #include <ShellScalingApi.h>
 #pragma comment(lib, "Shcore.lib")
@@ -16,6 +19,32 @@ static bool long_text = false;
 static std::filesystem::path manifest;
 static std::string variant;
 static std::filesystem::path overrides;
+static bool LayoutTests(HWND window) {
+  CClientDC dc(window);
+  weasel::Context sample; weasel::Status state; state.composing = true;
+  for (const auto* word : {L"守岸人", L"很长的一条候选内容用来检查边界", L"你好"}) {
+    weasel::Text text, label, comment; text.str = word; label.str = L"1";
+    comment.str = sample.cinfo.candies.empty() ? L"shǒu àn rén" : L"";
+    sample.cinfo.candies.push_back(text); sample.cinfo.labels.push_back(label);
+    sample.cinfo.comments.push_back(comment);
+  }
+  for (UINT dpi : {96u, 120u, 144u, 192u}) for (int position : {0, 1, 2}) {
+    auto style = ui.style(); style.annotation_position = position;
+    auto resources = std::make_shared<weasel::DirectWriteResources>(style, dpi);
+    weasel::HorizontalLayout layout(style, sample, state, resources);
+    layout.DoLayout(dc, resources); auto size = layout.GetContentSize();
+    for (int i = 0; i < 3; ++i) {
+      auto candidate = layout.GetCandidateRect(i), text = layout.GetCandidateTextRect(i);
+      if (candidate.left > text.left || candidate.top > text.top || candidate.right < text.right || candidate.bottom < text.bottom ||
+          candidate.left < 0 || candidate.top < 0 || candidate.right > size.cx || candidate.bottom > size.cy) return false;
+      auto comment = layout.GetCandidateCommentRect(i);
+      if (position == 2 && comment.Width()) return false;
+      if (position == 1 && i == 0 && comment.bottom >= text.top) return false;
+      if (comment.Width() && (candidate.left > comment.left || candidate.right < comment.right || candidate.top > comment.top || candidate.bottom < comment.bottom)) return false;
+    }
+  }
+  return true;
+}
 static void UpdatePreview(HWND window) {
   context.preedit.str = long_text ? L"wo xiang zai zhe li chang shi yi xia shu ru" : L"shou'an'ren";
   context.cinfo.candies.clear(); context.cinfo.labels.clear(); context.cinfo.comments.clear();
@@ -55,6 +84,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
   CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED); _Module.Init(nullptr, instance);
   int count = 0; LPWSTR* args = CommandLineToArgvW(GetCommandLineW(), &count);
+  bool layout_test = count == 2 && !wcscmp(args[1], L"--layout-test");
   for (int i = 1; i + 1 < count; i += 2) {
     if (!wcscmp(args[i], L"--manifest")) manifest = args[i + 1];
     if (!wcscmp(args[i], L"--variant")) variant = wtou8(args[i + 1]);
@@ -77,6 +107,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   style.border_color = 0xffe9a94d; style.shadow_color = 0x30000000;
   style.hilite_spacing = 5; style.hilite_padding_x = 3; style.hilite_padding_y = 3; style.max_width = 800;
   ui.Create(window);
+  if (layout_test) {
+    bool passed = LayoutTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 4;
+  }
   std::string error;
   if (!weasel::LoadSkinManifest(manifest, variant, style, error, overrides)) {
     MessageBoxW(window, u8tow(error).c_str(), L"皮肤加载失败", MB_ICONERROR);
