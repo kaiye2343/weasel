@@ -112,9 +112,11 @@ jobs:
           Copy-Item docs/skin-format.md output/archives/skin-format.md
           Copy-Item docs/rimeskin.schema.json output/archives/rimeskin.schema.json
           git rev-parse HEAD | Set-Content output/archives/commit.txt
-          Get-ChildItem output/archives -Recurse -File | Where-Object Name -ne 'SHA256SUMS.txt' | Get-FileHash -Algorithm SHA256 |
-            Format-Table Hash, Path -AutoSize | Out-String -Width 300 |
-            Set-Content output/archives/SHA256SUMS.txt
+          $archiveRoot = (Resolve-Path output/archives).Path
+          Get-ChildItem output/archives -Recurse -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' -and !$_.Name.StartsWith('.') } | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath($archiveRoot, $_.FullName).Replace('\', '/')
+            "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)  $relative"
+          } | Set-Content output/archives/SHA256SUMS.txt -Encoding utf8
       - uses: actions/upload-artifact@v4
         with:
           name: shorekeeper-weasel-${{ github.sha }}
