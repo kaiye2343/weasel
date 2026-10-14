@@ -23,7 +23,7 @@
    <TabItem Header="输入与场景"><ScrollViewer><StackPanel Margin="22">
     <TextBlock Text="配置目录" FontWeight="SemiBold"/><TextBox x:Name="RimeDirectory"/>
     <TextBlock Text="当前场景（标识仅使用英文、数字或下划线）"/><TextBox x:Name="ProfileId" Text="daily"/>
-    <WrapPanel><Button Content="载入场景设置" Click="LoadInputSettings"/><Button Content="新建独立学习场景" Click="CreateProfile"/><Button Content="生成 Android 配置包" Click="ExportAndroid"/></WrapPanel>
+    <WrapPanel><Button Content="载入场景设置" Click="LoadInputSettings"/><Button Content="新建独立学习场景" Click="CreateProfile"/></WrapPanel>
     <TextBlock Text="拼音方案"/><ComboBox x:Name="InputMode"/>
     <WrapPanel Margin="0,8"><CheckBox x:Name="SimplifiedInput" Content="默认简体" Margin="0,0,24,0"/><CheckBox x:Name="CorrectionInput" Content="拼写纠错" Margin="0,0,24,0"/><CheckBox x:Name="ContextInput" Content="上下文排序"/></WrapPanel>
     <TextBlock Text="模糊音（按需开启，避免无关候选过多）"/><WrapPanel x:Name="FuzzyOptions"/>

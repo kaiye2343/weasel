@@ -32,7 +32,7 @@ static bool LayoutTests(HWND window) {
     auto style = ui.style(); style.annotation_position = position;
     auto resources = std::make_shared<weasel::DirectWriteResources>(style, dpi);
     weasel::HorizontalLayout layout(style, sample, state, resources);
-    layout.DoLayout(dc, resources); auto size = layout.GetContentSize();
+    layout.DoLayout(CDCHandle(dc.m_hDC), resources); auto size = layout.GetContentSize();
     for (int i = 0; i < 3; ++i) {
       auto candidate = layout.GetCandidateRect(i), text = layout.GetCandidateTextRect(i);
       if (candidate.left > text.left || candidate.top > text.top || candidate.right < text.right || candidate.bottom < text.bottom ||

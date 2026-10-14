@@ -50,8 +50,13 @@ public partial class MainWindow : Window
     {
         if (Current is not { } current) return;
         SkinName.Text = current.Display; VariantList.ItemsSource = current.Skin.Manifest.Variants; VariantList.SelectedIndex = 0;
-        var image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad;
-        image.UriSource = new Uri(SkinStore.ResolveAsset(current.Skin.Directory, current.Skin.Manifest.Preview)); image.EndInit(); image.Freeze(); Thumbnail.Source = image;
+        try
+        {
+            var image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad;
+            image.UriSource = new Uri(SkinStore.ResolveAsset(current.Skin.Directory, current.Skin.Manifest.Preview)); image.EndInit(); image.Freeze(); Thumbnail.Source = image;
+        }
+        catch (Exception error) when (error is IOException or NotSupportedException or ArgumentException)
+        { Thumbnail.Source = null; StatusText.Text = "预览图读取失败：" + error.Message; }
     }
     void VariantChanged(object sender, SelectionChangedEventArgs e) { if (Variant != null) ShowStyle(Variant.Style); }
     void ShowStyle(SkinStyle style)

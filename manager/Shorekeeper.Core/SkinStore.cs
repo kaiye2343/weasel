@@ -59,6 +59,7 @@ public sealed class SkinStore
             if (data.AsSpan(0, 4).SequenceEqual("IEND"u8)) { ended = true; break; }
         }
         if (!ended || !hasData || stream.Position != stream.Length) throw new InvalidDataException("PNG数据不完整。");
+        NativePng.Validate(path, width, height);
         return (width, height);
     }
     public static SkinManifest ValidateDirectory(string root)

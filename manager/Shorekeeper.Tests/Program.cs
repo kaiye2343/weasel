@@ -7,7 +7,7 @@ string temp = Path.Combine(project, ".tools", "tests-" + Guid.NewGuid().ToString
 Directory.CreateDirectory(temp);
 int passed = 0;
 void Check(bool ok, string name) { if (!ok) throw new Exception(name); Console.WriteLine("PASS " + name); passed++; }
-void Reject(Action action, string name) { try { action(); } catch (Exception e) when (e is InvalidDataException or IOException or OverflowException or JsonException or ArgumentException) { Check(true, name); return; } throw new Exception("Accepted invalid input: " + name); }
+void Reject(Action action, string name) { try { action(); } catch (Exception e) when (e is InvalidDataException or IOException or OverflowException or JsonException or ArgumentException or UnauthorizedAccessException) { Check(true, name); return; } throw new Exception("Accepted invalid input: " + name); }
 string Package(string name, string? extra = null, Action<SkinManifest>? edit = null)
 {
     string source = Path.Combine(project, "skins", "shorekeeper");
@@ -15,7 +15,7 @@ string Package(string name, string? extra = null, Action<SkinManifest>? edit = n
     using var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create);
     var manifest = SkinJson.Read<SkinManifest>(Path.Combine(source, "manifest.json"));
     edit?.Invoke(manifest);
-    using (var writer = new StreamWriter(zip.CreateEntry("manifest.json").Open())) writer.Write(JsonSerializer.Serialize(manifest, SkinJson.Options));
+    using (var writer = new StreamWriter(zip.CreateEntry("manifest.json").Open())) writer.Write(JsonSerializer.Serialize(manifest, new JsonSerializerOptions(SkinJson.Options) { RespectNullableAnnotations = false }));
     foreach (string png in Directory.GetFiles(source, "*.png")) zip.CreateEntryFromFile(png, Path.GetFileName(png));
     if (extra != null) { using var writer = new StreamWriter(zip.CreateEntry(extra).Open()); writer.Write("invalid"); }
     return zipPath;
@@ -69,6 +69,11 @@ try
     string blocked = Path.Combine(profilesRoot, "blocked"); File.WriteAllText(blocked, "file");
     Reject(() => profiles.WriteBatchBackedUp(new Dictionary<string, string> { [workCustom] = "changed", [Path.Combine(blocked, "child.yaml")] = "bad" }), "batch staging failure");
     Check(File.ReadAllText(workCustom).Contains("自然码"), "staging failure commits no changes");
+    string workSaved = File.ReadAllText(workCustom);
+    File.SetAttributes(dailyCustom, FileAttributes.ReadOnly);
+    try { Reject(() => profiles.WriteBatchBackedUp(new Dictionary<string, string> { [workCustom] = "changed", [dailyCustom] = "blocked" }), "second commit failure rolls back batch"); }
+    finally { File.SetAttributes(dailyCustom, FileAttributes.Normal); }
+    Check(File.ReadAllText(workCustom) == workSaved && File.ReadAllText(dailyCustom) == dailyBefore, "committed file restored after batch failure");
     File.WriteAllText(Path.Combine(profilesRoot, "installation.yaml"), "installation_id: windows-a\n");
     string activeDb = Path.Combine(profilesRoot, "wanxiang_work.userdb"); Directory.CreateDirectory(activeDb); File.WriteAllText(Path.Combine(activeDb, "sentinel"), "active-db");
     string android = Path.Combine(temp, "android.zip"); profiles.ExportAndroid(android);
@@ -101,7 +106,11 @@ try
 finally
 {
     string safeRoot = Path.GetFullPath(Path.Combine(project, ".tools")) + Path.DirectorySeparatorChar;
-    if (Path.GetFullPath(temp).StartsWith(safeRoot, StringComparison.OrdinalIgnoreCase)) Directory.Delete(temp, true);
+    if (Path.GetFullPath(temp).StartsWith(safeRoot, StringComparison.OrdinalIgnoreCase))
+    {
+        foreach (string file in Directory.GetFiles(temp, "*", SearchOption.AllDirectories)) File.SetAttributes(file, FileAttributes.Normal);
+        Directory.Delete(temp, true);
+    }
 }
 
 sealed class MemoryDav : IWebDav
