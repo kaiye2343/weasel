@@ -60,3 +60,6 @@ skin_geometry_test.exe
 skin_geometry_test.obj
 .codegraph/
 .tools/
+
+manager/**/bin/
+manager/**/obj/
