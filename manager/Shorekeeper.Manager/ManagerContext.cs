@@ -45,8 +45,7 @@ public sealed class ManagerContext
     public async Task RefreshSkin()
     {
         if (PreviewMode) { Report("外观选择已保存到隔离目录；独立预览不连接日常输入法。"); return; }
-        try { await new RimeProcess(Tools).RunAsync("skin-reload"); Report("外观已应用；未部署或重启 Rime。"); }
-        catch (FileNotFoundException) { Report("外观已保存待刷新；请使用包含控制组件的完整工具包。"); }
+        try { await InstalledRunner().RunAsync("skin-reload"); Report("外观已应用；未部署或重启 Rime。"); }
         catch (RimeOperationException e) when (e.ExitCode == 2) { Report("外观已保存；服务未运行，将在下次启动时加载。"); }
     }
     public async Task Run(FrameworkElement owner, Func<Task> action)

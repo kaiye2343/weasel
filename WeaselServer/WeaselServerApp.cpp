@@ -54,6 +54,17 @@ void WeaselServerApp::SetupMenuHandlers() {
                                     std::wstring(L"/deploy")));
   m_server.AddMenuHandler(
       ID_WEASELTRAY_SETTINGS,
+      [dir] {
+        auto manager = dir / L"SettingsCenter" / L"Shorekeeper.Manager.exe";
+        if (!fs::exists(manager)) {
+          MessageBoxW(NULL, L"未找到 Rime 设置中心，请使用完整安装包修复安装。",
+                      L"Rime 设置中心", MB_OK | MB_ICONINFORMATION);
+          return false;
+        }
+        return execute(manager, std::wstring());
+      });
+  m_server.AddMenuHandler(
+      ID_WEASELTRAY_LEGACY_SETTINGS,
       std::bind(execute, dir / L"WeaselDeployer.exe", std::wstring()));
   m_server.AddMenuHandler(
       ID_WEASELTRAY_DICT_MANAGEMENT,

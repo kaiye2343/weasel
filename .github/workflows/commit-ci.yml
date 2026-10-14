@@ -52,6 +52,9 @@ jobs:
             if (Test-Path "$root/skins/ui-smoke-error.txt") { Get-Content "$root/skins/ui-smoke-error.txt" }
             throw "Settings UI smoke failed: $($test.ExitCode)"
           }
+      - name: Test repeated settings center launch
+        shell: pwsh
+        run: ./tools/test-settings-instance.ps1
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Configure VS 2022
         shell: pwsh
@@ -104,14 +107,14 @@ jobs:
           if errorlevel 1 exit /b 1
       - name: Build complete x64 and x86 package
         shell: cmd
+        env:
+          WEASEL_SKIP_INSTALLER: '1'
         run: |
           call build.bat installer
           if errorlevel 1 exit /b 1
       - name: Package skin samples and provenance
         shell: pwsh
         run: |
-          $installers = @(Get-ChildItem output/archives -Filter 'weasel*.exe')
-          if ($installers.Count -eq 0) { throw 'Build produced no installer' }
           foreach ($file in @('output/WeaselServer.exe', 'output/WeaselDeployer.exe', 'output/weasel.dll', 'output/weaselx64.dll', 'output/Win32/WeaselServer.exe')) {
             if (!(Test-Path -LiteralPath $file)) { throw "Missing component: $file" }
           }
@@ -136,6 +139,11 @@ jobs:
             if (!(Test-Path "output/$file")) { throw "Missing tool dependency: $file" }
             Copy-Item "output/$file" output/archives/tools/
           }
+          $env:WEASEL_SETTINGS_CENTER_DEFINE = '/DRIME_SETTINGS_CENTER_PACKAGE=1'
+          cmd /c build.bat installer
+          if ($LASTEXITCODE -ne 0) { throw 'Complete settings center installer failed' }
+          $installers = @(Get-ChildItem output/archives -Filter 'weasel*.exe')
+          if ($installers.Count -eq 0) { throw 'Build produced no installer' }
           ./tools/pack-skin.ps1
           ./tools/pack-skin.ps1 -Source skins/neutral -Destination output/archives/neutral-1.0.0.rimeskin
           Copy-Item docs/SETTINGS-CENTER.md output/archives/SETTINGS-CENTER.md

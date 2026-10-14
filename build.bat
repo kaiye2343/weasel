@@ -221,11 +221,12 @@ if %build_arm64% == 1 (
   if errorlevel 1 goto error
 )
 
-if %build_installer% == 1 (
+if %build_installer% == 1 if not "%WEASEL_SKIP_INSTALLER%" == "1" (
   "%ProgramFiles(x86)%"\NSIS\Bin\makensis.exe ^
   /DWEASEL_VERSION=%WEASEL_VERSION% ^
   /DWEASEL_BUILD=%WEASEL_BUILD% ^
   /DPRODUCT_VERSION=%PRODUCT_VERSION% ^
+  %WEASEL_SETTINGS_CENTER_DEFINE% ^
   output\install.nsi
   if errorlevel 1 goto error
 )

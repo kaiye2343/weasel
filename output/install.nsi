@@ -175,6 +175,9 @@ call_uninstaller:
   DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "WeaselServer"
   ; recover back to 32bit view
   SetRegView 32
+  ; SettingsCenter stores personal settings under LOCALAPPDATA, not here.
+  StrCmp $R1 "" +2
+  RMDir /r "$R1\SettingsCenter"
   ; Remove files and uninstaller
   Delete  "$R1\data\opencc\*.*"
   Delete  "$R1\data\preview\*.*"
@@ -303,6 +306,12 @@ program_files:
 
   SetOutPath $INSTDIR
 
+  !ifdef RIME_SETTINGS_CENTER_PACKAGE
+  SetOutPath "$INSTDIR\SettingsCenter"
+  File /r "archives\tools\*.*"
+  SetOutPath $INSTDIR
+  !endif
+
   ; test /T flag for zh_TW locale
   StrCpy $R2 "/i"
   ${GetParameters} $R0
@@ -367,6 +376,13 @@ SectionEnd
 ; Optional section (can be disabled by the user)
 Section "Start Menu Shortcuts"
   SetShellVarContext all
+  !ifdef RIME_SETTINGS_CENTER_PACKAGE
+  CreateShortCut "$SMPROGRAMS\Rime 设置中心.lnk" "$INSTDIR\SettingsCenter\Shorekeeper.Manager.exe"
+  ; Replace the prior per-user shortcut created by the portable distribution.
+  SetShellVarContext current
+  CreateShortCut "$SMPROGRAMS\Rime 设置中心.lnk" "$INSTDIR\SettingsCenter\Shorekeeper.Manager.exe"
+  SetShellVarContext all
+  !endif
   CreateDirectory "$SMPROGRAMS\$(DISPLAYNAME)"
   CreateShortCut "$SMPROGRAMS\$(DISPLAYNAME)\$(LNKFORMANUAL).lnk" "$INSTDIR\README.txt"
   CreateShortCut "$SMPROGRAMS\$(DISPLAYNAME)\$(LNKFORSETTING).lnk" "$INSTDIR\WeaselDeployer.exe" "" "$SYSDIR\shell32.dll" 21
@@ -403,6 +419,7 @@ Section "Uninstall"
   ${Endif}
   DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "WeaselServer"
 
+  RMDir /r "$INSTDIR\SettingsCenter"
   ; Remove files and uninstaller
   SetOutPath $TEMP
   Delete  "$INSTDIR\data\opencc\*.*"
@@ -413,6 +430,10 @@ Section "Uninstall"
   RMDir  "$INSTDIR\data\preview"
   RMDir  "$INSTDIR\data"
   RMDir  "$INSTDIR"
+  SetShellVarContext all
+  Delete "$SMPROGRAMS\Rime 设置中心.lnk"
+  SetShellVarContext current
+  Delete "$SMPROGRAMS\Rime 设置中心.lnk"
   SetShellVarContext all
   Delete  "$SMPROGRAMS\$(DISPLAYNAME)\*.*"
   RMDir  "$SMPROGRAMS\$(DISPLAYNAME)"
