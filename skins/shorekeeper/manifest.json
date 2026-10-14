@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "id": "shorekeeper",
+  "name": "守岸人",
+  "author": "Shorekeeper project",
+  "version": "1.0.0",
+  "minEngineVersion": "1.0",
+  "preview": "shorekeeper-right.png",
+  "variants": [
+    {
+      "id": "plush",
+      "name": "棉花娃娃",
+      "style": {
+        "fontFace": "Microsoft YaHei UI",
+        "fontPoint": 16,
+        "commentFontPoint": 11,
+        "annotationPosition": "above",
+        "paddingLeft": 16,
+        "paddingRight": 160,
+        "paddingTop": 12,
+        "paddingBottom": 12,
+        "candidateSpacing": 18,
+        "cornerRadius": 12,
+        "shadowRadius": 6,
+        "backgroundColor": "#FFF5FBFF",
+        "textColor": "#FF1C2F43",
+        "commentColor": "#FF617F99",
+        "highlightColor": "#FFDCEEFF",
+        "highlightTextColor": "#FF207BC8",
+        "borderColor": "#FF4DA9E9",
+        "borderWidth": 2,
+        "borderStyle": "dash",
+        "borderInset": 4,
+        "frame": null
+      },
+      "layers": [
+        {
+          "path": "shorekeeper-right.png",
+          "anchor": "bottom_right",
+          "x": -176,
+          "y": -149,
+          "width": 221,
+          "height": 184,
+          "z": 1
+        },
+        {
+          "path": "shorekeeper-wing-reference.png",
+          "anchor": "top_left",
+          "x": -29,
+          "y": -52,
+          "width": 75,
+          "height": 62,
+          "z": 2
+        },
+        {
+          "path": "shorekeeper-wordmark.png",
+          "anchor": "bottom_left",
+          "x": 4,
+          "y": -12,
+          "width": 160,
+          "height": 38,
+          "z": 3
+        }
+      ]
+    },
+    {
+      "id": "watermelon",
+      "name": "吃瓜",
+      "style": {
+        "fontFace": "Microsoft YaHei UI",
+        "fontPoint": 16,
+        "commentFontPoint": 11,
+        "annotationPosition": "above",
+        "paddingLeft": 16,
+        "paddingRight": 160,
+        "paddingTop": 12,
+        "paddingBottom": 12,
+        "candidateSpacing": 18,
+        "cornerRadius": 12,
+        "shadowRadius": 6,
+        "backgroundColor": "#FFF5FBFF",
+        "textColor": "#FF1C2F43",
+        "commentColor": "#FF617F99",
+        "highlightColor": "#FFDCEEFF",
+        "highlightTextColor": "#FF207BC8",
+        "borderColor": "#FF4DA9E9",
+        "borderWidth": 2,
+        "borderStyle": "dash",
+        "borderInset": 4,
+        "frame": null
+      },
+      "layers": [
+        {
+          "path": "shorekeeper-watermelon.png",
+          "anchor": "bottom_right",
+          "x": -176,
+          "y": -149,
+          "width": 221,
+          "height": 184,
+          "z": 1
+        },
+        {
+          "path": "shorekeeper-wing-reference.png",
+          "anchor": "top_left",
+          "x": -29,
+          "y": -52,
+          "width": 75,
+          "height": 62,
+          "z": 2
+        },
+        {
+          "path": "shorekeeper-wordmark.png",
+          "anchor": "bottom_left",
+          "x": 4,
+          "y": -12,
+          "width": 160,
+          "height": 38,
+          "z": 3
+        }
+      ]
+    },
+    {
+      "id": "butterfly",
+      "name": "星蝶Q版",
+      "style": {
+        "fontFace": "Microsoft YaHei UI",
+        "fontPoint": 16,
+        "commentFontPoint": 11,
+        "annotationPosition": "above",
+        "paddingLeft": 16,
+        "paddingRight": 160,
+        "paddingTop": 12,
+        "paddingBottom": 12,
+        "candidateSpacing": 18,
+        "cornerRadius": 12,
+        "shadowRadius": 6,
+        "backgroundColor": "#FFF5FBFF",
+        "textColor": "#FF1C2F43",
+        "commentColor": "#FF617F99",
+        "highlightColor": "#FFDCEEFF",
+        "highlightTextColor": "#FF207BC8",
+        "borderColor": "#FF4DA9E9",
+        "borderWidth": 2,
+        "borderStyle": "dash",
+        "borderInset": 4,
+        "frame": null
+      },
+      "layers": [
+        {
+          "path": "shorekeeper-butterfly.png",
+          "anchor": "bottom_right",
+          "x": -176,
+          "y": -200,
+          "width": 205,
+          "height": 232,
+          "z": 1
+        },
+        {
+          "path": "shorekeeper-wing-reference.png",
+          "anchor": "top_left",
+          "x": -29,
+          "y": -52,
+          "width": 75,
+          "height": 62,
+          "z": 2
+        },
+        {
+          "path": "shorekeeper-wordmark.png",
+          "anchor": "bottom_left",
+          "x": 4,
+          "y": -12,
+          "width": 160,
+          "height": 38,
+          "z": 3
+        }
+      ]
+    }
+  ]
+}

@@ -27,6 +27,19 @@ jobs:
           submodules: recursive
           fetch-depth: 0
       - uses: microsoft/setup-msbuild@v2
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Test skin import, profiles and sync protocol
+        shell: pwsh
+        run: |
+          dotnet run --project manager/Shorekeeper.Tests -c Release -- .
+          if ($LASTEXITCODE -ne 0) { throw 'Managed tests failed' }
+      - name: Publish self-contained manager
+        shell: pwsh
+        run: |
+          dotnet publish manager/Shorekeeper.Manager -c Release -r win-x64 --self-contained true -o output/archives/tools
+          if ($LASTEXITCODE -ne 0) { throw 'Manager publish failed' }
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Configure VS 2022
         shell: pwsh
@@ -62,6 +75,13 @@ jobs:
         run: |
           call build.bat data
           if errorlevel 1 exit /b 1
+      - name: Test official Rime learning and snapshot merge
+        shell: cmd
+        run: |
+          cl /nologo /EHsc /std:c++17 /utf-8 /Iinclude tests\rime_learning_test.cpp /Fe:output\rime_learning_test.exe /link /LIBPATH:lib rime.lib
+          if errorlevel 1 exit /b 1
+          output\rime_learning_test.exe .tools\native-learning
+          if errorlevel 1 exit /b 1
       - name: Build complete x64 and x86 package
         shell: cmd
         run: |
@@ -75,10 +95,18 @@ jobs:
           foreach ($file in @('output/WeaselServer.exe', 'output/WeaselDeployer.exe', 'output/weasel.dll', 'output/weaselx64.dll', 'output/Win32/WeaselServer.exe')) {
             if (!(Test-Path -LiteralPath $file)) { throw "Missing component: $file" }
           }
-          Copy-Item skins output/archives/skins -Recurse
+          msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$env:GITHUB_WORKSPACE\"
+          if ($LASTEXITCODE -ne 0) { throw 'Native preview build failed' }
+          foreach ($file in @('WeaselSkinPreview.exe', 'WeaselServer.exe', 'rime.dll', 'WinSparkle.dll')) {
+            if (!(Test-Path "output/$file")) { throw "Missing tool dependency: $file" }
+            Copy-Item "output/$file" output/archives/tools/
+          }
+          ./tools/pack-skin.ps1
           Copy-Item docs/SHOREKEEPER.md output/archives/SHOREKEEPER.md
+          Copy-Item docs/skin-format.md output/archives/skin-format.md
+          Copy-Item docs/rimeskin.schema.json output/archives/rimeskin.schema.json
           git rev-parse HEAD | Set-Content output/archives/commit.txt
-          Get-ChildItem output/archives -Filter '*.exe' | Get-FileHash -Algorithm SHA256 |
+          Get-ChildItem output/archives -Recurse -File | Where-Object Name -ne 'SHA256SUMS.txt' | Get-FileHash -Algorithm SHA256 |
             Format-Table Hash, Path -AutoSize | Out-String -Width 300 |
             Set-Content output/archives/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4

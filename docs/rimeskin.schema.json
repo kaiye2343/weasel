@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RimeSkin 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^(?!.*\\.\\.)[a-z0-9][a-z0-9._-]{0,63}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "minEngineVersion": {
+      "const": "1.0"
+    },
+    "preview": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "^(?!/)(?!.*(?:\\\\|:|(?:^|/)\\.{1,2}(?:/|$))).+\\.png$"
+    },
+    "variants": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(?!.*\\.\\.)[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "style": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "fontFace": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "fontPoint": {
+                "type": "integer",
+                "minimum": 8,
+                "maximum": 48
+              },
+              "commentFontPoint": {
+                "type": "integer",
+                "minimum": 8,
+                "maximum": 32
+              },
+              "annotationPosition": {
+                "type": "string",
+                "enum": [
+                  "above",
+                  "beside",
+                  "hidden"
+                ]
+              },
+              "cornerRadius": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 64
+              },
+              "shadowRadius": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 32
+              },
+              "borderWidth": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 12
+              },
+              "borderInset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 32
+              },
+              "borderStyle": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "solid",
+                  "dash"
+                ]
+              },
+              "frame": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 240,
+                        "pattern": "^(?!/)(?!.*(?:\\\\|:|(?:^|/)\\.{1,2}(?:/|$))).+\\.png$"
+                      },
+                      "slice": {
+                        "type": "array",
+                        "minItems": 4,
+                        "maxItems": 4,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 2048
+                        }
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "slice"
+                    ]
+                  }
+                ]
+              },
+              "paddingLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 256
+              },
+              "paddingTop": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 256
+              },
+              "paddingRight": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 256
+              },
+              "paddingBottom": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 256
+              },
+              "candidateSpacing": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 256
+              },
+              "backgroundColor": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{8}$"
+              },
+              "textColor": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{8}$"
+              },
+              "commentColor": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{8}$"
+              },
+              "highlightColor": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{8}$"
+              },
+              "highlightTextColor": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{8}$"
+              },
+              "borderColor": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{8}$"
+              },
+              "shadowColor": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{8}$"
+              }
+            },
+            "required": []
+          },
+          "layers": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 240,
+                  "pattern": "^(?!/)(?!.*(?:\\\\|:|(?:^|/)\\.{1,2}(?:/|$))).+\\.png$"
+                },
+                "anchor": {
+                  "type": "string",
+                  "enum": [
+                    "top_left",
+                    "top_right",
+                    "bottom_left",
+                    "bottom_right"
+                  ]
+                },
+                "x": {
+                  "type": "integer",
+                  "minimum": -512,
+                  "maximum": 512
+                },
+                "y": {
+                  "type": "integer",
+                  "minimum": -512,
+                  "maximum": 512
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 512
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 512
+                },
+                "z": {
+                  "type": "integer",
+                  "minimum": -100,
+                  "maximum": 100
+                }
+              },
+              "required": [
+                "path",
+                "anchor",
+                "width",
+                "height"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "style",
+          "layers"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "author",
+    "version",
+    "minEngineVersion",
+    "preview",
+    "variants"
+  ]
+}
