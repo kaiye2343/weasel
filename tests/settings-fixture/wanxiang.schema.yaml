@@ -1,0 +1,19 @@
+schema:
+  schema_id: wanxiang
+  name: 万象兼容性示例
+  version: '1.0'
+  dependencies: [wanxiang_phrase]
+switches:
+  - name: ascii_mode
+    reset: 0
+  - options: [s2s, s2t, s2hk, s2tw]
+    reset: 0
+  - name: context_reorder
+    reset: 1
+translator:
+  dictionary: wanxiang
+grammar:
+  language: wanxiang-lts-zh-hans
+engine:
+  processors: [ascii_composer, lua_processor@*wanxiang]
+  translators: [script_translator]

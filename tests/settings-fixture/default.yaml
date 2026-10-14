@@ -1,0 +1,19 @@
+schema_list:
+  - schema: plain
+  - schema: wanxiang
+menu:
+  page_size: 5
+ascii_composer:
+  good_old_caps_lock: true
+  switch_key:
+    Shift_L: inline_ascii
+    Shift_R: commit_text
+switcher:
+  hotkeys: [Control+grave, F4]
+key_binder:
+  bindings:
+    - {when: has_menu, accept: minus, send: Page_Up}
+    - {when: has_menu, accept: equal, send: Page_Down}
+punctuator:
+  half_shape: {',': '，', '.': '。'}
+  full_shape: {',': '，', '.': '。'}

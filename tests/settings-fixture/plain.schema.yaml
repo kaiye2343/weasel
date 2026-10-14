@@ -1,0 +1,10 @@
+schema:
+  schema_id: plain
+  name: 普通 Rime 方案
+  version: '1.0'
+  author: Settings fixture
+engine:
+  processors: [ascii_composer, speller, selector, express_editor]
+  translators: [script_translator]
+translator:
+  dictionary: plain

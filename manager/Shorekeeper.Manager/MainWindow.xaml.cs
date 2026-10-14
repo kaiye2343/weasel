@@ -1,212 +1,119 @@
-using System.Diagnostics;
 using System.IO;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using Microsoft.Win32;
+using System.Windows.Threading;
 using Shorekeeper.Core;
 
 namespace Shorekeeper.Manager;
 public partial class MainWindow : Window
 {
-    readonly SkinStore store;
-    readonly CancellationTokenSource lifetime = new();
-    string? loadedProfile;
-    InputSettings inputSettings = new();
-    sealed record SkinEntry(InstalledSkin Skin) { public string Display => $"{Skin.Manifest.Name}  {Skin.Manifest.Version}"; }
-    SkinEntry? Current => SkinList.SelectedItem as SkinEntry;
-    SkinVariant? Variant => VariantList.SelectedItem as SkinVariant;
-    string ToolDirectory => AppContext.BaseDirectory;
+    readonly ManagerContext context;
+    readonly SettingsPageRegistry pages = new();
+    bool loading;
+    int activeIndex;
+    UserControl? activePage;
+    sealed record Scope(string? Id, string Name);
     public MainWindow()
     {
-        InitializeComponent();
-        string[] args = Environment.GetCommandLineArgs(); int index = Array.IndexOf(args, "--data-root");
-        store = new SkinStore(index >= 0 && index + 1 < args.Length ? args[index + 1] : null);
-        RimeDirectory.Text = InstalledUserDirectory();
-        InputMode.ItemsSource = new[] { "全拼", "自然码", "小鹤双拼", "微软双拼", "搜狗双拼", "智能ABC", "紫光双拼", "拼音加加" };
-        foreach (var name in RimeProfiles.FuzzyNames) FuzzyOptions.Children.Add(new CheckBox { Content = name.Replace('_', '/'), Tag = name, Margin = new Thickness(0, 4, 20, 8) });
-        Closing += (_, _) => lifetime.Cancel();
-        Loaded += async (_, _) => await Work(async () => { await RefreshSkins(); StatusText.Text = "就绪 · 本版为实验构建，先用原生预览验证外观。"; });
+        InitializeComponent(); context = new();
+        var factories = new Dictionary<string, Func<UserControl>>
+        {
+            ["general"] = () => new SettingsPage(context, "general"), ["schemas"] = () => new SchemaPage(context),
+            ["wanxiang"] = () => new WanxiangPage(context), ["keys"] = () => new SettingsPage(context, "keys"),
+            ["dictionary"] = () => new SettingsPage(context, "dictionary"), ["skins"] = () => new SkinPage(context),
+            ["scenes"] = () => new ScenePage(context), ["backup"] = () => new BackupPage(context),
+            ["sync"] = () => new SyncPage(context), ["diagnostics"] = () => new DiagnosticsPage(context)
+        };
+        foreach (var module in SettingsModules.All) pages.Register(module, factories[module.Id]);
+        context.Status += text => StatusText.Text = text;
+        context.Changed += () => UpdateState(); context.ConfigurationSaved += () => SaveState.Text = "已保存待部署";
+        RimeDirectory.Text = context.Root; Navigation.ItemsSource = pages.Modules;
+        Loaded += async (_, _) =>
+        {
+            Reload(); var args = Environment.GetCommandLineArgs();
+            if (args.Contains("--ui-smoke"))
+            {
+                try
+                {
+                    foreach (var scope in ScopeSelector.Items.Cast<Scope>().ToList())
+                    {
+                        ScopeSelector.SelectedItem = scope;
+                        for (int i = 0; i < pages.Modules.Count; i++) { Navigation.SelectedIndex = i; UpdateLayout(); if (activePage == null) throw new IOException(pages.Modules[i].Name + "：" + StatusText.Text); }
+                    }
+                    ScopeSelector.SelectedIndex = 0; Navigation.SelectedIndex = 0;
+                }
+                catch (Exception e) { Directory.CreateDirectory(context.Skins.Root); File.WriteAllText(Path.Combine(context.Skins.Root, "ui-smoke-error.txt"), e.ToString()); Application.Current.Shutdown(1); return; }
+            }
+            int capture = Array.IndexOf(args, "--capture-image");
+            if (capture >= 0 && capture + 1 < args.Length)
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    UpdateLayout(); var surface = (FrameworkElement)Content;
+                    var bitmap = new RenderTargetBitmap((int)surface.ActualWidth + 40, (int)surface.ActualHeight + 40, 96, 96, PixelFormats.Pbgra32);
+                    var background = new DrawingVisual(); using (var drawing = background.RenderOpen()) drawing.DrawRectangle(Background, null, new Rect(0, 0, bitmap.PixelWidth, bitmap.PixelHeight)); bitmap.Render(background); bitmap.Render(this); var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
+                    string file = Path.GetFullPath(args[capture + 1]); Directory.CreateDirectory(Path.GetDirectoryName(file)!); using var stream = File.Create(file); png.Save(stream);
+                }, DispatcherPriority.ApplicationIdle);
+            if (args.Contains("--ui-smoke")) Application.Current.Shutdown();
+        };
+        Closing += (_, e) => { if (!CanDiscard()) e.Cancel = true; };
     }
-    async Task Work(Func<Task> action)
+    bool CanDiscard() => activePage is not ISettingsPage page || !page.IsDirty || MessageBox.Show("有尚未保存的修改。放弃修改并继续？", "尚未保存", MessageBoxButton.OKCancel) == MessageBoxResult.OK;
+    void UpdateState()
     {
-        if (!IsEnabled) return;
-        IsEnabled = false;
-        try { await action(); }
-        catch (OperationCanceledException) { StatusText.Text = "操作已取消。"; }
-        catch (Exception error) { StatusText.Text = "未完成：" + error.Message; }
-        finally { IsEnabled = true; }
+        if (activePage is ISettingsPage page && page.IsDirty) SaveState.Text = "尚未保存";
+        else if (SaveState.Text == "尚未保存") SaveState.Text = "已载入 · 未修改";
     }
-    async Task RefreshSkins()
+    void Reload()
     {
-        var skins = await Task.Run(store.List); SkinList.ItemsSource = skins.Select(s => new SkinEntry(s)).ToList();
-        var state = store.Selection();
-        SkinList.SelectedItem = SkinList.Items.Cast<SkinEntry>().FirstOrDefault(s => s.Skin.Manifest.Id == state.SkinId && s.Skin.Manifest.Version == state.SkinVersion) ?? SkinList.Items.Cast<SkinEntry>().FirstOrDefault();
-        if (state.VariantId != null) VariantList.SelectedItem = VariantList.Items.Cast<SkinVariant>().FirstOrDefault(v => v.Id == state.VariantId) ?? VariantList.SelectedItem;
-        if (state.StyleOverride != null && state.SkinId == Current?.Skin.Manifest.Id && state.SkinVersion == Current?.Skin.Manifest.Version) ShowStyle(state.StyleOverride);
-    }
-    void SkinChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (Current is not { } current) return;
-        SkinName.Text = current.Display; VariantList.ItemsSource = current.Skin.Manifest.Variants; VariantList.SelectedIndex = 0;
+        loading = true;
         try
         {
-            var image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad;
-            image.UriSource = new Uri(SkinStore.ResolveAsset(current.Skin.Directory, current.Skin.Manifest.Preview)); image.EndInit(); image.Freeze(); Thumbnail.Source = image;
+            context.Root = Path.GetFullPath(RimeDirectory.Text);
+            var schemas = new RimeSettings(context.Root).Schemas(); var scopes = schemas.Select(s => new Scope(s.Id, s.Name + " · " + s.Id)).Prepend(new Scope(null, "全局默认")).ToList();
+            ScopeSelector.ItemsSource = scopes; ScopeSelector.SelectedItem = scopes.FirstOrDefault(s => s.Id == context.Schema) ?? scopes[0]; context.Schema = ((Scope)ScopeSelector.SelectedItem).Id;
+            if (Navigation.SelectedIndex < 0) Navigation.SelectedIndex = 0;
+            BuildPage(); StatusText.Text = context.PreviewMode ? "独立预览模式 · 不连接日常输入法" : "已载入设置，尚未修改文件。";
         }
-        catch (Exception error) when (error is IOException or NotSupportedException or ArgumentException)
-        { Thumbnail.Source = null; StatusText.Text = "预览图读取失败：" + error.Message; }
+        catch (Exception e) { StatusText.Text = "载入失败：" + e.Message; }
+        finally { loading = false; }
     }
-    void VariantChanged(object sender, SelectionChangedEventArgs e) { if (Variant != null) ShowStyle(Variant.Style); }
-    void ShowStyle(SkinStyle style)
+    void LoadSettings(object sender, RoutedEventArgs e) { if (CanDiscard()) Reload(); }
+    void Navigate(object sender, SelectionChangedEventArgs e)
     {
-        StyleEditor.Text = JsonSerializer.Serialize(style, SkinJson.Options);
-        FontSizeInput.Text = style.FontPoint.ToString(); RightPadding.Text = style.PaddingRight.ToString();
-        AnnotationPosition.SelectedIndex = style.AnnotationPosition == "above" ? 0 : style.AnnotationPosition == "beside" ? 1 : 2;
-        BorderKind.SelectedIndex = style.BorderStyle == "none" ? 0 : style.BorderStyle == "solid" ? 1 : 2;
+        if (loading || context == null) return;
+        if (!CanDiscard()) { loading = true; Navigation.SelectedIndex = activeIndex; loading = false; return; }
+        BuildPage();
     }
-    SkinStyle EditedStyle()
+    void ChangeScope(object sender, SelectionChangedEventArgs e)
     {
-        var style = JsonSerializer.Deserialize<SkinStyle>(StyleEditor.Text, SkinJson.Options) ?? throw new InvalidDataException("样式为空。");
-        style.FontPoint = int.Parse(FontSizeInput.Text); style.PaddingRight = int.Parse(RightPadding.Text);
-        style.AnnotationPosition = AnnotationPosition.SelectedIndex switch { 0 => "above", 1 => "beside", _ => "hidden" };
-        style.BorderStyle = BorderKind.SelectedIndex switch { 0 => "none", 1 => "solid", _ => "dash" };
-        SkinStore.ValidateStyle(style); return style;
+        if (loading || context == null || ScopeSelector.SelectedItem is not Scope scope) return;
+        if (!CanDiscard()) { loading = true; ScopeSelector.SelectedItem = ScopeSelector.Items.Cast<Scope>().First(s => s.Id == context.Schema); loading = false; return; }
+        context.Schema = scope.Id; BuildPage();
     }
-    async void ImportSkin(object sender, RoutedEventArgs e)
+    void BuildPage()
     {
-        var dialog = new OpenFileDialog { Filter = "皮肤包|*.rimeskin;*.zip" }; if (dialog.ShowDialog() != true) return;
-        await Work(async () => { var skin = await Task.Run(() => store.Import(dialog.FileName)); await RefreshSkins(); SkinList.SelectedItem = SkinList.Items.Cast<SkinEntry>().First(s => s.Skin.Directory == skin.Directory); StatusText.Text = "已导入，尚未启用。可以先打开原生预览。"; });
+        if (Navigation.SelectedItem is not SettingsModule module) return;
+        TitleText.Text = module.Name; DescriptionText.Text = module.Description; activeIndex = Navigation.SelectedIndex;
+        activePage = null; PageHost.Content = null;
+        try { activePage = pages.Create(module.Id); PageHost.Content = activePage; }
+        catch (Exception e) { StatusText.Text = "页面未载入：" + e.Message; PageHost.Content = Elements.Card(Elements.Text("无法读取设置，请检查配置目录及 YAML 格式。\n" + e.Message, 16)); }
+        PreviewButton.IsEnabled = SaveButton.IsEnabled = activePage is ISettingsPage;
+        if (SaveState.Text != "已保存待部署") SaveState.Text = "已载入 · 未修改";
     }
-    async void PreviewSkin(object sender, RoutedEventArgs e) => await Work(async () =>
+    async void PreviewChanges(object sender, RoutedEventArgs e) => await context.Run(this, () =>
     {
-        if (Current == null || Variant == null) throw new InvalidOperationException("请先选择皮肤与变体。");
-        string exe = Path.Combine(ToolDirectory, "WeaselSkinPreview.exe"); if (!File.Exists(exe)) throw new FileNotFoundException("请使用包含原生预览程序的完整工具包。");
-        string directory = Path.Combine(store.Root, "previews"); Directory.CreateDirectory(directory);
-        string file = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".json"); SkinJson.WriteAtomic(file, EditedStyle());
-        var start = new ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = ToolDirectory };
-        foreach (string arg in new[] { "--manifest", Path.Combine(Current.Skin.Directory, "manifest.json"), "--variant", Variant.Id, "--style-overrides", file }) start.ArgumentList.Add(arg);
-        var process = Process.Start(start) ?? throw new IOException("无法启动预览。");
-        _ = process.WaitForExitAsync().ContinueWith(_ => { process.Dispose(); try { File.Delete(file); } catch (IOException) { } });
-        StatusText.Text = "已打开隔离预览；不会连接正在使用的输入法。"; await Task.CompletedTask;
+        if (activePage is ISettingsPage page && page.Preview() is { } plan) ChangeReview.Confirm(plan); return Task.CompletedTask;
     });
-    async Task RefreshEngine()
+    async void SaveSettings(object sender, RoutedEventArgs e) => await context.Run(this, async () =>
     {
-        try { await new RimeProcess(ToolDirectory).RunAsync("skin-reload", lifetime.Token); StatusText.Text = "外观已即时刷新；没有部署或重启Rime。"; }
-        catch (FileNotFoundException) { StatusText.Text = "选择已保存；此工具目录缺少即时刷新组件。"; }
-        catch (RimeOperationException error) when (error.ExitCode == 2) { StatusText.Text = "选择已保存；小狼毫服务未运行，将在下次启动时加载。"; }
-    }
-    async void ApplySkin(object sender, RoutedEventArgs e) => await Work(async () =>
-    {
-        if (Current == null || Variant == null) throw new InvalidOperationException("请先选择皮肤。");
-        var previous = store.Selection();
-        var skin = Current.Skin; string variant = Variant.Id; var style = EditedStyle();
-        await Task.Run(() => store.Select(skin, variant, style));
-        try { await RefreshEngine(); }
-        catch { SkinJson.WriteAtomic(store.StatePath, previous); throw; }
+        if (activePage is not ISettingsPage page || page.Preview() is not { } plan || !ChangeReview.Confirm(plan)) return;
+        string backup = await Task.Run(() => plan.Save(context.Root)); page.Saved(); context.MarkSaved(); BuildPage(); StatusText.Text = "配置已保存待部署。备份：" + backup;
     });
-    async void ResetSkin(object sender, RoutedEventArgs e) => await Work(async () =>
+    async void Deploy(object sender, RoutedEventArgs e) => await context.Run(this, async () =>
     {
-        var previous = store.Selection(); store.Reset();
-        try { await RefreshEngine(); } catch { SkinJson.WriteAtomic(store.StatePath, previous); throw; }
-    });
-    async void ExportSkin(object sender, RoutedEventArgs e)
-    {
-        if (Current == null) return; var current = Current;
-        var dialog = new SaveFileDialog { Filter = "皮肤包|*.rimeskin", FileName = current.Skin.Manifest.Id + ".rimeskin" }; if (dialog.ShowDialog() != true) return;
-        await Work(async () => { await Task.Run(() => store.Export(current.Skin, dialog.FileName)); StatusText.Text = "皮肤包已导出。"; });
-    }
-    void ShowInput(InputSettings settings)
-    {
-        inputSettings = settings; InputMode.SelectedItem = settings.PinyinMode;
-        SimplifiedInput.IsChecked = settings.Simplified; CorrectionInput.IsChecked = settings.EnableCorrection; ContextInput.IsChecked = settings.ContextReorder;
-        foreach (CheckBox check in FuzzyOptions.Children) check.IsChecked = settings.FuzzyGroups.Contains((string)check.Tag);
-        InputEditor.Text = JsonSerializer.Serialize(settings, SkinJson.Options);
-        ShortcutsInput.Text = string.Join('\n', settings.Shortcuts.Select(p => p.Key + "\t" + p.Value));
-    }
-    async void LoadInputSettings(object sender, RoutedEventArgs e) => await Work(async () =>
-    {
-        var profiles = new RimeProfiles(RimeDirectory.Text); string id = ProfileId.Text;
-        var settings = await Task.Run(() => profiles.Load(id)); loadedProfile = id; ShowInput(settings); StatusText.Text = "已载入场景设置，尚未修改文件。";
-    });
-    InputSettings EditedInput()
-    {
-        if (loadedProfile != ProfileId.Text) throw new InvalidOperationException("请先载入当前场景设置，避免覆盖其他场景。");
-        var settings = JsonSerializer.Deserialize<InputSettings>(InputEditor.Text, SkinJson.Options) ?? throw new InvalidDataException("输入设置为空。");
-        settings.PinyinMode = InputMode.SelectedItem as string ?? "全拼"; settings.Simplified = SimplifiedInput.IsChecked == true;
-        settings.EnableCorrection = CorrectionInput.IsChecked == true; settings.ContextReorder = ContextInput.IsChecked == true;
-        settings.FuzzyGroups = FuzzyOptions.Children.OfType<CheckBox>().Where(c => c.IsChecked == true).Select(c => (string)c.Tag).ToList();
-        settings.Shortcuts.Clear();
-        foreach (string line in ShortcutsInput.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries)) { var pair = line.TrimEnd('\r').Split('\t', 2); if (pair.Length != 2) throw new InvalidDataException("快捷短语须为缩写<Tab>短语。"); settings.Shortcuts.Add(pair[0], pair[1]); }
-        return settings;
-    }
-    string InstalledDirectory()
-    {
-        if (!Path.GetFullPath(RimeDirectory.Text).TrimEnd(Path.DirectorySeparatorChar).Equals(InstalledUserDirectory().TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
-            throw new IOException("官方部署器只操作当前安装的用户目录。此处目录不同，请先导出配置包或使用隔离测试工具，避免误部署日常输入法。");
-        using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Rime\Weasel");
-        string? directory = key?.GetValue("WeaselRoot") as string;
-        if (directory == null) throw new IOException("未找到已安装的小狼毫。"); return directory;
-    }
-    static string InstalledUserDirectory()
-    {
-        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Rime\Weasel");
-        return Path.GetFullPath(key?.GetValue("RimeUserDir") as string ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Rime"));
-    }
-    async void SaveInputSettings(object sender, RoutedEventArgs e) => await Work(async () =>
-    {
-        string root = RimeDirectory.Text, id = ProfileId.Text; var settings = EditedInput();
-        var runner = new RimeProcess(InstalledDirectory());
-        if (MessageBox.Show("将备份并保存当前场景设置，然后重新部署。YAML的注释和排版可能变化，原文件可从备份恢复。", "应用输入设置", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
-        string backup = await Task.Run(() => new RimeProfiles(root).Apply(id, settings));
-        await runner.RunAsync("deploy", lifetime.Token); StatusText.Text = "设置已应用。备份：" + backup;
-    });
-    async void CreateProfile(object sender, RoutedEventArgs e) => await Work(async () =>
-    {
-        string root = RimeDirectory.Text, id = ProfileId.Text;
-        var runner = new RimeProcess(InstalledDirectory());
-        if (MessageBox.Show("将新建场景配置和独立学习数据命名，并追加到方案菜单。", "新建场景", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
-        await Task.Run(() => new RimeProfiles(root).Create(id)); await runner.RunAsync("deploy", lifetime.Token); StatusText.Text = "场景已创建，可在方案菜单切换。";
-    });
-    async void ImportDictionary(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Filter = "词库TSV/文本|*.tsv;*.txt" }; if (dialog.ShowDialog() != true) return;
-        await Work(async () => { string root = RimeDirectory.Text, id = ProfileId.Text; var runner = new RimeProcess(InstalledDirectory()); await Task.Run(() => new RimeProfiles(root).ImportDictionary(id, dialog.FileName)); await runner.RunAsync("deploy", lifetime.Token); StatusText.Text = "词库已备份、合并并部署。"; });
-    }
-    async void BackupProfile(object sender, RoutedEventArgs e)
-    {
-        var dialog = new SaveFileDialog { Filter = "场景备份|*.zip", FileName = ProfileId.Text + "-backup.zip" }; if (dialog.ShowDialog() != true) return;
-        await Work(async () => { await RimeSnapshots.BackupProfileAsync(RimeDirectory.Text, ProfileId.Text, dialog.FileName, new RimeProcess(InstalledDirectory())); StatusText.Text = "已备份场景配置与官方同步快照。"; });
-    }
-    async void RestoreProfile(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Filter = "场景备份|*.zip" }; if (dialog.ShowDialog() != true) return;
-        if (MessageBox.Show("将先备份现有资料，再恢复配置，并由Rime合并用户词典快照。", "恢复备份", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
-        await Work(async () => { await RimeSnapshots.RestoreProfileAsync(RimeDirectory.Text, dialog.FileName, new RimeProcess(InstalledDirectory())); StatusText.Text = "配置已恢复，用户词典已交由官方同步机制合并。"; });
-    }
-    async void ExportAndroid(object sender, RoutedEventArgs e)
-    {
-        var dialog = new SaveFileDialog { Filter = "Android配置包|*.zip", FileName = "wanxiang-trime.zip" }; if (dialog.ShowDialog() != true) return;
-        await Work(async () => { string root = RimeDirectory.Text; await Task.Run(() => new RimeProfiles(root).ExportAndroid(dialog.FileName)); StatusText.Text = "已导出Trime静态配置包；语法模型需单独导入，不包含Windows设备ID。"; });
-    }
-    async void SyncNow(object sender, RoutedEventArgs e) => await Work(async () =>
-    {
-        var endpoint = new Uri(DavUrl.Text); string user = DavUser.Text;
-        string target = "ShorekeeperWebDAV:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(endpoint.AbsoluteUri + "\n" + user)));
-        string password = string.IsNullOrEmpty(DavPassword.Password) ? CredentialStore.Read(target) ?? "" : DavPassword.Password;
-        if (password.Length == 0) throw new InvalidDataException("请输入应用密码。");
-        using var dav = new HttpWebDav(endpoint, user, password);
-        if (RememberCredential.IsChecked == true) CredentialStore.Save(target, user, password);
-        DavPassword.Clear(); StatusText.Text = "正在备份、下载并合并快照…";
-        var result = await new SnapshotSync(dav, new RimeProcess(InstalledDirectory())).Run(RimeDirectory.Text, lifetime.Token);
-        StatusText.Text = $"同步完成：下载{result.Downloaded}，上传{result.Uploaded}。其他设备配置存放于{result.IncomingConfigDirectory}，待审阅后应用。";
-    });
-    async void CollectDiagnostics(object sender, RoutedEventArgs e) => await Work(async () =>
-    {
-        string root = RimeDirectory.Text; bool runtimeCaptured = false;
-        try { await new RimeProcess(ToolDirectory).RunAsync("diagnostics", lifetime.Token); runtimeCaptured = true; } catch (IOException) { }
-        string directory = await Task.Run(() => RimeSnapshots.CollectDiagnostics(root, store.Root, runtimeCaptured)); DiagnosticResult.Text = directory;
-        StatusText.Text = "诊断现场已保存；未重启小狼毫。";
+        if (activePage is ISettingsPage page && page.IsDirty) throw new InvalidOperationException("请先保存当前修改，再部署应用。");
+        await context.InstalledRunner().RunAsync("deploy"); SaveState.Text = "已应用"; StatusText.Text = "输入配置已由官方部署器应用。";
     });
 }
