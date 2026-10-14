@@ -81,7 +81,15 @@ jobs:
           if errorlevel 1 exit /b 1
       - name: Fetch pinned librime SDK
         shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: ./get-rime.ps1 -tag 1.13.1 -use dev
+      - name: Verify pinned librime SDK files
+        shell: pwsh
+        run: |
+          foreach ($file in @('include/rime_api.h', 'include/rime_levers_api.h', 'lib/rime.lib', 'lib64/rime.lib', 'output/rime.dll', 'output/Win32/rime.dll')) {
+            if (!(Test-Path -LiteralPath $file) -or (Get-Item -LiteralPath $file).Length -eq 0) { throw "SDK download incomplete: $file" }
+          }
       - name: Build dictionaries
         shell: cmd
         run: |

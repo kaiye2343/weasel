@@ -103,6 +103,10 @@ $global:url_pat = "github"
 $global:url_replace = "github"
 # if ~/.get-rime.conf.ps1 exist, source it
 if (Test-Path "$home_dir/.get-rime.conf.ps1") { & "$home_dir/.get-rime.conf.ps1" }
+if (!$global:authorization -and $env:GITHUB_TOKEN -and $api_pat -eq "https://api.github.com/repos/rime/librime/releases/") {
+  # CI token is used only for the official API, never passed to asset hosts.
+  $global:authorization = $env:GITHUB_TOKEN
+}
 # if $api_pat not set, use the original api url, in case of conf files not exist
 if (!$api_pat) { $api_pat = "https://api.github.com/repos/rime/librime/releases/" }
 if ($tag) {
