@@ -120,6 +120,7 @@ jobs:
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--layout-test' -WindowStyle Hidden -PassThru -Wait
           if ($test.ExitCode -ne 0) { throw "Native annotation/DPI layout tests failed: $($test.ExitCode)" }
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--preferences-test' -WindowStyle Hidden -PassThru -Wait
+          if (Test-Path native-preferences-test.log) { Get-Content native-preferences-test.log }
           if ($test.ExitCode -ne 0) { throw "Native display preferences tests failed: $($test.ExitCode)" }
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--smoke', 'true') -WindowStyle Hidden -PassThru -Wait
           if ($test.ExitCode -ne 0) { throw "Native no-skin preview failed: $($test.ExitCode)" }
@@ -159,6 +160,7 @@ jobs:
           name: shorekeeper-failure-${{ github.sha }}
           path: |
             msbuild*.log
+            native-preferences-test.log
             .tools/native-learning/
             .tools/settings-smoke/skins/ui-smoke-error.txt
           if-no-files-found: ignore

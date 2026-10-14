@@ -24,8 +24,10 @@ static int smoke_frames = 0;
 static bool PreferenceTests() {
   wchar_t previous[32768] = {}; GetEnvironmentVariableW(L"LOCALAPPDATA", previous, 32768);
   auto temporary = std::filesystem::absolute(std::filesystem::temp_directory_path());
+  while (temporary.filename().empty() && temporary != temporary.root_path()) temporary = temporary.parent_path();
   auto sandbox = temporary / (L"RimePreviewPreferences-" + std::to_wstring(GetCurrentProcessId()));
-  if (sandbox.parent_path() != temporary || std::filesystem::exists(sandbox)) return false;
+  std::ofstream report("native-preferences-test.log");
+  if (sandbox.parent_path() != temporary || std::filesystem::exists(sandbox)) { report << "Sandbox path invalid or already exists"; return false; }
   std::filesystem::create_directories(sandbox / L"ShorekeeperWeasel");
   SetEnvironmentVariableW(L"LOCALAPPDATA", sandbox.c_str());
   bool passed = false;
@@ -34,18 +36,19 @@ static bool PreferenceTests() {
     auto write = [](const std::filesystem::path& path, const char* value) { std::ofstream stream(path); stream << value; };
     auto style = ui.style(); std::string error;
     write(root / L"display.json", R"({"schemaVersion":1,"annotationPosition":"above"})");
-    if (!weasel::LoadActiveSkin(style, error) || style.annotation_position != 1) throw std::runtime_error("No-skin preference failed");
+    if (!weasel::LoadActiveSkin(style, error) || style.annotation_position != 1) throw std::runtime_error("No-skin preference failed: " + error);
     auto skin = root / L"skins" / L"neutral" / L"1.0.0"; std::filesystem::create_directories(skin);
     write(skin / L"manifest.json", R"({"schemaVersion":1,"minEngineVersion":"1.0","variants":[{"id":"plain","style":{"annotationPosition":"beside"},"layers":[]}]})");
     write(root / L"state.json", R"({"schemaVersion":1,"skinId":"neutral","skinVersion":"1.0.0","variantId":"plain","styleOverride":{"annotationPosition":"hidden","fontPoint":21}})");
-    if (!weasel::LoadActiveSkin(style, error) || style.annotation_position != 1 || style.font_point != 21 || !style.skin_images.empty()) throw std::runtime_error("Legacy/pure skin preference failed");
+    if (!weasel::LoadActiveSkin(style, error) || style.annotation_position != 1 || style.font_point != 21 || !style.skin_images.empty()) throw std::runtime_error("Legacy/pure skin preference failed: " + error);
     write(root / L"display.json", R"({"schemaVersion":1,"annotationPosition":"skin"})");
     if (!weasel::LoadActiveSkin(style, error) || style.annotation_position != 2) throw std::runtime_error("Follow-skin failed");
     write(root / L"display.json", R"({"schemaVersion":1,"annotationPosition":"invalid"})");
     auto before = style;
     if (weasel::LoadActiveSkin(style, error) || style != before) throw std::runtime_error("Failure modified style");
     passed = true;
-  } catch (...) { passed = false; }
+    report << "PASS no-skin, pure-color, legacy override, follow-skin and failure rollback";
+  } catch (const std::exception& error) { report << error.what(); passed = false; }
   SetEnvironmentVariableW(L"LOCALAPPDATA", *previous ? previous : nullptr);
   if (sandbox.parent_path() == temporary) std::filesystem::remove_all(sandbox);
   return passed;
