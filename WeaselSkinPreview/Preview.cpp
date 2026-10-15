@@ -147,6 +147,20 @@ static bool LayoutTests(HWND window) {
       if (comment.Width() && (candidate.left > comment.left || candidate.right < comment.right || candidate.top > comment.top || candidate.bottom < comment.bottom)) return false;
     }
   }
+  sample.preedit.str = L"shou'an'ren";
+  {
+    auto style = ui.style(); style.annotation_position = 1; style.inline_preedit = true;
+    style.client_caps &= ~weasel::INLINE_PREEDIT_CAPABLE;
+    auto resources = std::make_shared<weasel::DirectWriteResources>(style, 144);
+    weasel::HorizontalLayout fallback(style, sample, state, resources);
+    fallback.DoLayout(CDCHandle(dc.m_hDC), resources);
+    style.client_caps |= weasel::INLINE_PREEDIT_CAPABLE;
+    weasel::HorizontalLayout inlineLayout(style, sample, state, resources);
+    inlineLayout.DoLayout(CDCHandle(dc.m_hDC), resources);
+    if (fallback.GetPreeditRect().IsRectEmpty() || !inlineLayout.GetPreeditRect().IsRectEmpty() ||
+        inlineLayout.GetCandidateCommentRect(0).IsRectEmpty() || inlineLayout.GetContentSize().cy >= fallback.GetContentSize().cy) return false;
+    report << "PASS inline composition removes duplicate code row and preserves annotations; legacy fallback retained\n";
+  }
   for (auto& comment : sample.cinfo.comments) comment.clear();
   auto style = ui.style(); style.annotation_position = 1; style.annotation_collapse_empty = true;
   auto resources = std::make_shared<weasel::DirectWriteResources>(style, 144);
@@ -232,7 +246,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   auto& style = ui.style();
   style.font_face = style.label_font_face = style.comment_font_face = L"Microsoft YaHei UI";
   style.font_point = style.label_font_point = 16; style.comment_font_point = 11;
-  style.layout_type = weasel::UIStyle::LAYOUT_HORIZONTAL; style.inline_preedit = false;
+  style.layout_type = weasel::UIStyle::LAYOUT_HORIZONTAL; style.inline_preedit = true;
+  style.client_caps |= weasel::INLINE_PREEDIT_CAPABLE; // Simulate normal TSF inline composition.
   style.back_color = 0xfffffbf5; style.candidate_text_color = style.text_color = 0xff432f1c;
   style.label_text_color = style.comment_text_color = 0xff997f61;
   style.hilited_candidate_text_color = style.hilited_label_text_color = 0xffc87b20;
