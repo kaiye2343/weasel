@@ -2,6 +2,8 @@
 #include <windows.h>
 #include <gdiplus.h>
 #include <memory>
+#include <cstring>
+#include <cstddef>
 
 namespace weasel {
 // Preserve the failing API's status before GDI+ resets it in GetLastStatus().
@@ -39,13 +41,33 @@ inline std::unique_ptr<Gdiplus::Bitmap> LoadSkinBitmap(
     fail("dimensions", Gdiplus::InvalidParameter);
     return {};
   }
-  // The detached clone closes the source file, as in the existing renderer.
-  std::unique_ptr<Gdiplus::Bitmap> bitmap(source->Clone(
-      0, 0, static_cast<INT>(error.width), static_cast<INT>(error.height),
-      PixelFormat32bppPARGB));
-  const auto cloneStatus = bitmap ? bitmap->GetLastStatus() : source->GetLastStatus();
-  if (!bitmap || cloneStatus != Gdiplus::Ok) {
-    fail("clone", cloneStatus == Gdiplus::Ok ? Gdiplus::GenericError : cloneStatus);
+  // Clone retains GDI+'s source-file dependency. Copy decoded pixels into a fresh
+  // allocation instead, so the cached image has no file/decoder lifetime link.
+  auto bitmap = std::make_unique<Gdiplus::Bitmap>(
+      static_cast<INT>(error.width), static_cast<INT>(error.height), PixelFormat32bppPARGB);
+  auto status = bitmap->GetLastStatus();
+  if (status != Gdiplus::Ok) {
+    fail("allocate", status);
+    return {};
+  }
+  Gdiplus::Rect rect(0, 0, static_cast<INT>(error.width), static_cast<INT>(error.height));
+  Gdiplus::BitmapData from = {}, to = {};
+  status = source->LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppPARGB, &from);
+  if (status != Gdiplus::Ok) { fail("decode_pixels", status); return {}; }
+  status = bitmap->LockBits(&rect, Gdiplus::ImageLockModeWrite, PixelFormat32bppPARGB, &to);
+  if (status != Gdiplus::Ok) {
+    source->UnlockBits(&from);
+    fail("copy_pixels", status);
+    return {};
+  }
+  for (UINT y = 0; y < error.height; ++y)
+    std::memcpy(static_cast<BYTE*>(to.Scan0) + static_cast<ptrdiff_t>(y) * to.Stride,
+                static_cast<const BYTE*>(from.Scan0) + static_cast<ptrdiff_t>(y) * from.Stride,
+                static_cast<size_t>(error.width) * 4);
+  const auto destinationStatus = bitmap->UnlockBits(&to);
+  const auto sourceStatus = source->UnlockBits(&from);
+  if (destinationStatus != Gdiplus::Ok || sourceStatus != Gdiplus::Ok) {
+    fail("unlock_pixels", destinationStatus != Gdiplus::Ok ? destinationStatus : sourceStatus);
     return {};
   }
   return bitmap;
