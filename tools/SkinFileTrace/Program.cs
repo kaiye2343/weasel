@@ -81,7 +81,7 @@ try
                     (uint)Value("CreateOptions"), (uint)Value("CreateAttributes", "FileAttributes"), (uint)Value("ShareAccess"));
             }
             else if ((int)data.ID == 24)
-                requests.End(data.TimeStamp.ToUniversalTime(), Value("Irp", "IrpPtr"), (uint)Value("NtStatus"));
+                requests.End(data.TimeStamp.ToUniversalTime(), Value("Irp", "IrpPtr"), (uint)Value("NtStatus", "Status"));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidDataException or InvalidCastException or FormatException or OverflowException)
         {
