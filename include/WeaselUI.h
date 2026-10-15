@@ -49,6 +49,7 @@ class UI {
   void ShowWithTimeout(size_t millisec);
   bool IsCountingDown() const;
   bool IsShown() const;
+  HWND GetCandidateWindow() const;
 
   // 重绘界面
   void Refresh();

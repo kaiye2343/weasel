@@ -171,6 +171,7 @@ jobs:
         if: failure()
         with:
           name: shorekeeper-failure-${{ github.sha }}
+          include-hidden-files: true
           path: |
             msbuild*.log
             native-preferences-test.log

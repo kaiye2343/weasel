@@ -131,6 +131,10 @@ void UI::Show() {
   }
 }
 
+HWND UI::GetCandidateWindow() const {
+  return pimpl_ && pimpl_->panel.IsWindow() ? pimpl_->panel.m_hWnd : nullptr;
+}
+
 void UI::Hide() {
   if (pimpl_) {
     pimpl_->Hide();

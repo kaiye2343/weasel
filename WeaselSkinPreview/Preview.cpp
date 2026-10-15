@@ -22,20 +22,11 @@ static std::string variant;
 static std::filesystem::path overrides;
 static std::filesystem::path display_preferences;
 static int smoke_frames = 0;
-static HWND CandidateWindow(HWND owner) {
-  struct Search { HWND owner, result; int count; } search{owner, nullptr, 0};
-  EnumThreadWindows(GetCurrentThreadId(), [](HWND window, LPARAM data) -> BOOL {
-    auto& found = *reinterpret_cast<Search*>(data);
-    if (GetWindow(window, GW_OWNER) == found.owner && (GetWindowLongW(window, GWL_STYLE) & WS_POPUP)) { found.result = window; ++found.count; }
-    return TRUE;
-  }, reinterpret_cast<LPARAM>(&search));
-  return search.count == 1 ? search.result : nullptr;
-}
 static void PumpPreview() { MSG message; while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&message); DispatchMessageW(&message); } }
 static bool RedrawTests(HWND owner) {
   std::ofstream report("native-redraw-test.log");
   ShowWindow(owner, SW_SHOWNOACTIVATE); ui.Show(); PumpPreview();
-  HWND panel = CandidateWindow(owner); if (!panel) return false;
+  HWND panel = ui.GetCandidateWindow(); if (!panel) { report << "Candidate window unavailable"; return false; }
   SetPropW(panel, L"Weasel.RenderProbe", reinterpret_cast<HANDLE>(1));
   auto frames = [panel]() { return reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.RenderGeneration")); };
   ui.ctx().preedit.str += L" "; ui.Refresh(); PumpPreview();
@@ -238,7 +229,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     MessageBoxW(window, u8tow(error).c_str(), L"皮肤加载失败", MB_ICONERROR);
     DestroyWindow(window); _Module.Term(); CoUninitialize(); return 1;
   }
-  if (!display_preferences.empty() && !weasel::LoadDisplayPreferences(display_preferences, style, error)) {
+  // Use the same defaults as production, without reading the user's active display.json.
+  if (display_preferences.empty()) display_preferences = previewLogs / L"display.json";
+  if (!weasel::LoadDisplayPreferences(display_preferences, style, error)) {
     MessageBoxW(window, u8tow(error).c_str(), L"显示偏好加载失败", MB_ICONERROR);
     DestroyWindow(window); _Module.Term(); CoUninitialize(); return 1;
   }
