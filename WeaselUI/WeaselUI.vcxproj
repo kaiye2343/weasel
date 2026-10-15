@@ -310,6 +310,7 @@
     <ClInclude Include="HorizontalLayout.h" />
     <ClInclude Include="Layout.h" />
     <ClInclude Include="StandardLayout.h" />
+    <ClInclude Include="SkinImageLoader.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="VerticalLayout.h" />

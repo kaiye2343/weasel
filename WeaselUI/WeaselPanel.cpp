@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "WeaselPanel.h"
 #include "SkinGeometry.h"
+#include "SkinImageLoader.h"
 #include <WeaselSkin.h>
 #include <fstream>
 
@@ -80,7 +81,8 @@ WeaselPanel::WeaselPanel(weasel::UI& ui)
   m_iconHalf.LoadIconW(IDI_HALF_SHAPE, STATUS_ICON_SIZE, STATUS_ICON_SIZE,
                        LR_DEFAULTCOLOR);
   // for gdi+ drawings, initialization
-  GdiplusStartup(&_m_gdiplusToken, &_m_gdiplusStartupInput, NULL);
+  m_gdiplus_startup_status = GdiplusStartup(
+      &_m_gdiplusToken, &_m_gdiplusStartupInput, NULL);
 
   HMONITOR hMonitor = MonitorFromRect(m_inputPos, MONITOR_DEFAULTTONEAREST);
   UINT dpiX = 96, dpiY = 96;
@@ -100,7 +102,7 @@ WeaselPanel::~WeaselPanel() {
   m_layout = NULL;
   delete m_bg_image;
   m_bg_image = NULL;
-  Gdiplus::GdiplusShutdown(_m_gdiplusToken);
+  if (_m_gdiplusToken) Gdiplus::GdiplusShutdown(_m_gdiplusToken);
   // pDWR.reset();
 }
 
@@ -138,21 +140,19 @@ void WeaselPanel::_UpdateSkinGeometry() {
   if (m_skin_config != m_style.skin_images || stamps != m_skin_stamps) {
     std::vector<std::unique_ptr<Gdiplus::Bitmap>> next;
     bool valid = m_style.skin_images.empty() || GetTickCount64() >= m_skin_retry_after;
+    std::string failure;
     for (const auto& image : m_style.skin_images) {
       if (!valid) break;
-      std::unique_ptr<Gdiplus::Bitmap> bitmap(
-          Gdiplus::Bitmap::FromFile(image.path.c_str()));
-      if (bitmap && bitmap->GetLastStatus() == Gdiplus::Ok &&
-          bitmap->GetWidth() <= 2048 && bitmap->GetHeight() <= 2048 &&
-          bitmap->GetWidth() && bitmap->GetHeight()) {
-        // Clone and close the source file so skins remain editable on disk.
-        bitmap.reset(bitmap->Clone(0, 0, (INT)bitmap->GetWidth(),
-                                   (INT)bitmap->GetHeight(),
-                                   PixelFormat32bppPARGB));
-      } else {
-        bitmap.reset();
+      SkinImageLoadError error;
+      auto bitmap = LoadSkinBitmap(image.path.c_str(), error);
+      if (!bitmap) {
+        failure = "layer=" + std::to_string(next.size()) + " stage=" + error.stage +
+            " gdip=" + std::to_string(error.status) +
+            " file_error=" + std::to_string(error.file_error) +
+            " dimensions=" + std::to_string(error.width) + "," + std::to_string(error.height);
+        valid = false;
+        break;
       }
-      if (!bitmap || bitmap->GetLastStatus() != Gdiplus::Ok) { valid = false; break; }
       next.push_back(std::move(bitmap));
     }
     if (valid) {
@@ -161,7 +161,8 @@ void WeaselPanel::_UpdateSkinGeometry() {
       m_skin_retry_after = 0; m_skin_load_failed = false;
       _TraceSkinState("resources_ready");
     } else if (GetTickCount64() >= m_skin_retry_after) {
-      if (!m_skin_load_failed) _TraceSkinState("decode_failed_preserving_previous_resources");
+      // Log each actual attempt (at most once/second), including recovery attempts.
+      _TraceSkinState("decode_failed_preserving_previous_resources", failure);
       m_skin_load_failed = true; m_skin_retry_after = GetTickCount64() + 1000;
     }
   }
@@ -1334,6 +1335,10 @@ void WeaselPanel::RedrawWindow() {
 }
 
 void WeaselPanel::_TraceSkinState(const char* reason) {
+  _TraceSkinState(reason, {});
+}
+
+void WeaselPanel::_TraceSkinState(const char* reason, const std::string& detail) {
   try {
     auto root = SkinDataRoot() / L"render-logs";
     wchar_t overrideRoot[32768] = {};
@@ -1347,7 +1352,10 @@ void WeaselPanel::_TraceSkinState(const char* reason) {
     std::ofstream stream(path, std::ios::app);
     stream << GetTickCount64() << ' ' << reason << " requested=" << m_style.skin_images.size()
            << " decoded=" << m_skin_bitmaps.size() << " canvas=" << m_skin_size.cx << ',' << m_skin_size.cy
-           << " origin=" << m_skin_origin.x << ',' << m_skin_origin.y << " dpi=" << dpi << '\n';
+           << " origin=" << m_skin_origin.x << ',' << m_skin_origin.y << " dpi=" << dpi
+           << " thread=" << GetCurrentThreadId() << " gdip_startup=" << m_gdiplus_startup_status;
+    if (!detail.empty()) stream << ' ' << detail;
+    stream << '\n';
   } catch (const std::exception&) { }
 }
 

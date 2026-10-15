@@ -108,6 +108,7 @@ class WeaselPanel
   void _DrawSkinImages(Gdiplus::Graphics& graphics, CPoint origin, bool below);
   void _DrawAnnotationSeparators(CDCHandle dc);
   void _TraceSkinState(const char* reason);
+  void _TraceSkinState(const char* reason, const std::string& detail);
   CPoint m_skin_origin = CPoint(0, 0);
   CSize m_skin_size = CSize(0, 0);
   std::vector<SkinImage> m_skin_config;
@@ -152,6 +153,7 @@ class WeaselPanel
   // for gdiplus drawings
   Gdiplus::GdiplusStartupInput _m_gdiplusStartupInput;
   ULONG_PTR _m_gdiplusToken;
+  Gdiplus::Status m_gdiplus_startup_status = Gdiplus::Ok;
 
   UINT dpi;
 
