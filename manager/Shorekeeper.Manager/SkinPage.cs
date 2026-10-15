@@ -76,6 +76,8 @@ public sealed class SkinPage : UserControl
         string exe = Path.Combine(context.Tools, "WeaselSkinPreview.exe"); if (!File.Exists(exe)) throw new FileNotFoundException("完整构建包中提供原生预览程序。");
         var start = new ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = context.Tools };
         string? temporary = null;
+        start.ArgumentList.Add("--display-preferences");
+        start.ArgumentList.Add(new DisplayPreferencesStore(context.Skins.Root).PathName);
         if (Current != null && Variant != null)
         {
             temporary = Path.Combine(context.Skins.Root, "previews", Guid.NewGuid().ToString("N") + ".json");

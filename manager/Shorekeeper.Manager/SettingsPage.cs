@@ -12,13 +12,10 @@ public sealed class SettingsPage : UserControl, ISettingsPage
     readonly RimeSettings settings;
     readonly string? scope;
     readonly List<(SettingValue Value, Func<string> Get)> editors = [];
-    readonly DisplayPreferencesStore display;
-    ComboBox? annotation;
-    string initialAnnotation;
+    DisplaySettingsPanel? displayPanel;
     public SettingsPage(ManagerContext context, string module)
     {
         this.context = context; settings = new(context.Root); scope = context.Schema;
-        display = new(context.Skins.Root); initialAnnotation = display.Read().AnnotationPosition;
         var panel = new StackPanel();
         foreach (var definition in RimeSettings.Definitions.Where(d => d.Module == module))
         {
@@ -50,19 +47,8 @@ public sealed class SettingsPage : UserControl, ISettingsPage
         }
         if (module == "general")
         {
-            var body = new StackPanel(); body.Children.Add(Elements.Text("候选拼音位置", 18));
-            body.Children.Add(Elements.Text("作用范围：全局 · 显示偏好    来源：display.json（独立于输入方案）", 12, true));
-            annotation = new ComboBox { ItemsSource = new[] { "跟随皮肤", "上方", "旁边", "隐藏" }, SelectedIndex = Array.IndexOf(new[] { "skin", "above", "beside", "hidden" }, initialAnnotation) };
-            annotation.SelectionChanged += (_, _) => context.MarkChanged(); body.Children.Add(annotation);
-            body.Children.Add(Elements.Text("使用方案提供的候选注释，缺失时留空。此项只刷新外观。", 12, true));
-            body.Children.Add(Elements.Button("保存并刷新拼音位置", async () => await context.Run(this, async () =>
-            {
-                var previous = display.Read(); string selected = AnnotationValue();
-                display.Save(new() { AnnotationPosition = selected });
-                try { await context.RefreshSkin(); initialAnnotation = selected; context.MarkChanged(); }
-                catch { display.Save(previous); throw; }
-            })));
-            panel.Children.Add(Elements.Card(body));
+            displayPanel = new DisplaySettingsPanel(context);
+            panel.Children.Add(Elements.Card(displayPanel));
         }
         if (module == "dictionary")
         {
@@ -91,11 +77,10 @@ public sealed class SettingsPage : UserControl, ISettingsPage
         }
         Content = Elements.Scroll(panel);
     }
-    string AnnotationValue() => new[] { "skin", "above", "beside", "hidden" }[annotation?.SelectedIndex ?? 0];
-    public bool IsDirty => editors.Any(e => e.Get() != e.Value.Value) || annotation != null && AnnotationValue() != initialAnnotation;
+    public bool IsDirty => editors.Any(e => e.Get() != e.Value.Value) || displayPanel?.IsDirty == true;
     public ConfigurationPlan? Preview()
     {
-        if (annotation != null && AnnotationValue() != initialAnnotation) throw new InvalidOperationException("请先使用“保存并刷新拼音位置”，显示偏好不参与 Rime 部署。");
+        if (displayPanel?.IsDirty == true) throw new InvalidOperationException("请先使用“保存并刷新候选显示”，显示偏好不参与 Rime 部署。");
         return settings.Preview(scope, editors.Where(e => e.Get() != e.Value.Value).Select(e => (e.Value.Definition, e.Get())));
     }
     public void Saved() { }

@@ -29,6 +29,7 @@ public partial class MainWindow : Window
         foreach (var module in SettingsModules.All) pages.Register(module, factories[module.Id]);
         context.Status += text => StatusText.Text = text;
         context.Changed += () => UpdateState(); context.ConfigurationSaved += () => SaveState.Text = "已保存待部署";
+        context.DisplaySaved += applied => SaveState.Text = applied ? "已应用" : "外观已保存待刷新";
         RimeDirectory.Text = context.Root; Navigation.ItemsSource = pages.Modules;
         Loaded += async (_, _) =>
         {

@@ -98,6 +98,9 @@ public sealed class SkinStore
     }
     public static void ValidateStyle(SkinStyle style)
     {
+        if (style.AnnotationSeparator == null || style.AnnotationSeparator.Thickness is < 1 or > 4 ||
+            !Regex.IsMatch(style.AnnotationSeparator.Color, "^#[0-9A-Fa-f]{8}$"))
+            throw new InvalidDataException("注音分隔线参数无效。");
         if (style.AnnotationPosition is not ("above" or "beside" or "hidden") || style.BorderStyle is not ("none" or "solid" or "dash") ||
             style.FontPoint is < 8 or > 48 || style.CommentFontPoint is < 8 or > 32 || style.BorderWidth is < 0 or > 12 ||
             style.BorderInset is < 0 or > 32 || style.CornerRadius is < 0 or > 64 || style.ShadowRadius is < 0 or > 32 ||

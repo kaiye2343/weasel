@@ -35,6 +35,7 @@ public sealed class SkinVariant
 }
 public sealed class SkinStyle
 {
+    public AnnotationSeparator AnnotationSeparator { get; set; } = new();
     public string FontFace { get; set; } = "Microsoft YaHei UI";
     public int FontPoint { get; set; } = 16;
     public int CommentFontPoint { get; set; } = 11;
@@ -57,6 +58,13 @@ public sealed class SkinStyle
     public string BorderStyle { get; set; } = "solid";
     public int BorderInset { get; set; } = 0;
     public SkinFrame? Frame { get; set; }
+}
+public sealed class AnnotationSeparator
+{
+    public bool Enabled { get; set; } = true;
+    public string Color { get; set; } = "#55000000";
+    public int Thickness { get; set; } = 1;
+    public bool FadeEnds { get; set; } = true;
 }
 public sealed class SkinFrame
 {

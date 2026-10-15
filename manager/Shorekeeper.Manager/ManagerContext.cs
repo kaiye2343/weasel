@@ -17,6 +17,7 @@ public sealed class ManagerContext
     public event Action<string>? Status;
     public event Action? Changed;
     public event Action? ConfigurationSaved;
+    public event Action<bool>? DisplaySaved;
     public ManagerContext()
     {
         var args = Environment.GetCommandLineArgs();
@@ -26,6 +27,7 @@ public sealed class ManagerContext
     public void Report(string text) => Status?.Invoke(text);
     public void MarkChanged() => Changed?.Invoke();
     public void MarkSaved() => ConfigurationSaved?.Invoke();
+    public void MarkDisplaySaved(bool applied) => DisplaySaved?.Invoke(applied);
     public static string InstalledUserDirectory()
     {
         using var key = Registry.CurrentUser.OpenSubKey(@"Software\Rime\Weasel");
@@ -42,11 +44,11 @@ public sealed class ManagerContext
         }
         throw new IOException("未找到已安装的小狼毫。");
     }
-    public async Task RefreshSkin()
+    public async Task<bool> RefreshSkin()
     {
-        if (PreviewMode) { Report("外观选择已保存到隔离目录；独立预览不连接日常输入法。"); return; }
-        try { await InstalledRunner().RunAsync("skin-reload"); Report("外观已应用；未部署或重启 Rime。"); }
-        catch (RimeOperationException e) when (e.ExitCode == 2) { Report("外观已保存；服务未运行，将在下次启动时加载。"); }
+        if (PreviewMode) { Report("外观选择已保存到隔离目录；独立预览不连接日常输入法。"); return false; }
+        try { await InstalledRunner().RunAsync("skin-reload"); Report("外观已应用；未部署或重启 Rime。"); return true; }
+        catch (RimeOperationException e) when (e.ExitCode == 2) { Report("外观已保存；服务未运行，将在下次启动时加载。"); return false; }
     }
     public async Task Run(FrameworkElement owner, Func<Task> action)
     {
