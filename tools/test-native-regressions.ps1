@@ -16,6 +16,7 @@ function ExpectFailure([string]$arguments,[int]$expected,[string]$log) {
  if(!$test.WaitForExit(60000)){Stop-Process -Id $test.Id;throw 'Baseline regression timed out'}
  if(Test-Path -LiteralPath $log){Copy-Item -LiteralPath $log -Destination (Join-Path $scratch $log)}
  if($test.ExitCode -ne $expected){throw "Baseline must reproduce the specific failure ($expected), actual $($test.ExitCode)"}
+ if($expected -eq 6 -and (Get-Content -LiteralPath $log -Raw) -notmatch 'context-change frames=[1-9][0-9]*') { throw 'Baseline frame probe did not observe the control repaint' }
 }
 try {
  foreach($relative in $sources){
@@ -23,7 +24,24 @@ try {
   Copy-Item -LiteralPath $source -Destination (Join-Path $scratch ([IO.Path]::GetFileName($source)))
   $old=& git show "${Baseline}:$relative"
   if($LASTEXITCODE -ne 0){throw 'Baseline source missing'}
-  [IO.File]::WriteAllText($source,($old -join "`n")+"`n",[Text.UTF8Encoding]::new($false))
+  $baselineText=($old -join "`n")+"`n"
+  if($relative -eq 'WeaselUI/WeaselPanel.cpp') {
+   # Give the baseline the identical passive frame probe, without changing its redraw decisions.
+   # Otherwise missing instrumentation would masquerade as a reproduced rendering failure.
+   $call="  UpdateLayeredWindow(m_hWnd, ScreenDC, &WindowPosAtScreen, &sz, dc,`n                      &PointOriginal, RGB(0, 0, 0), &bf, ULW_ALPHA);"
+   if(!$baselineText.Contains($call)){throw 'Baseline layered-window seam changed'}
+   $probe=@'
+  if (UpdateLayeredWindow(m_hWnd, ScreenDC, &WindowPosAtScreen, &sz, dc,
+                          &PointOriginal, RGB(0, 0, 0), &bf, ULW_ALPHA)) {
+    if (::GetPropW(m_hWnd, L"Weasel.RenderProbe")) {
+      auto generation = reinterpret_cast<ULONG_PTR>(::GetPropW(m_hWnd, L"Weasel.RenderGeneration"));
+      ::SetPropW(m_hWnd, L"Weasel.RenderGeneration", reinterpret_cast<HANDLE>(generation + 1));
+    }
+  }
+'@
+   $baselineText=$baselineText.Replace($call,$probe)
+  }
+  [IO.File]::WriteAllText($source,$baselineText,[Text.UTF8Encoding]::new($false))
  }
  BuildPreview
  ExpectFailure '--layout-test' 4 'native-layout-test.log'

@@ -38,6 +38,9 @@ static bool RedrawTests(HWND owner) {
   HWND panel = CandidateWindow(owner); if (!panel) return false;
   SetPropW(panel, L"Weasel.RenderProbe", reinterpret_cast<HANDLE>(1));
   auto frames = [panel]() { return reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.RenderGeneration")); };
+  ui.ctx().preedit.str += L" "; ui.Refresh(); PumpPreview();
+  report << "context-change frames=" << frames() << '\n';
+  if (!frames()) { RemovePropW(panel, L"Weasel.RenderProbe"); return false; }
   auto beforeFrames = frames();
   ui.style().font_point += 1; ui.Refresh(); PumpPreview();
   bool passed = frames() > beforeFrames;
