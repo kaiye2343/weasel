@@ -1,0 +1,52 @@
+name: Skin file access diagnostics
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [shorekeeper]
+    paths: ['tools/SkinFileTrace/**', '.github/workflows/skin-file-trace.yml']
+  pull_request:
+    branches: [shorekeeper]
+    paths: ['tools/SkinFileTrace/**', '.github/workflows/skin-file-trace.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore pinned diagnostic dependencies
+        run: dotnet restore tools/SkinFileTrace --locked-mode
+      - name: Test privacy filtering and request correlation without ETW
+        run: dotnet run --project tools/SkinFileTrace -c Release --no-restore -- --self-test
+      - name: Test actual Windows file events using isolated fixtures
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .tools | Out-Null
+          dotnet run --project tools/SkinFileTrace -c Release --no-build -- --trace-self-test --output .tools/skin-file-trace.jsonl
+          if ($LASTEXITCODE -ne 0) { throw 'Real ETW controls failed; do not claim capture works' }
+      - name: Publish standalone diagnostic tool
+        run: dotnet publish tools/SkinFileTrace -c Release -r win-x64 --self-contained true -p:RestoreLockedMode=true -o .tools/skin-file-trace-tool
+      - name: Add instructions and checksums
+        shell: pwsh
+        run: |
+          Copy-Item tools/SkinFileTrace/README.md .tools/skin-file-trace-tool/
+          git rev-parse HEAD | Set-Content .tools/skin-file-trace-tool/commit.txt
+          $root = (Resolve-Path .tools/skin-file-trace-tool).Path
+          Get-ChildItem $root -Recurse -File | Sort-Object FullName | ForEach-Object {
+            '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash, $_.FullName.Substring($root.Length + 1).Replace('\', '/')
+          } | Set-Content "$root/SHA256SUMS"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: skin-file-trace-${{ github.sha }}
+          path: |
+            .tools/skin-file-trace.jsonl
+            .tools/skin-file-trace-tool/
+          if-no-files-found: warn

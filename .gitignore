@@ -63,3 +63,5 @@ skin_geometry_test.obj
 
 manager/**/bin/
 manager/**/obj/
+tools/SkinFileTrace/bin/
+tools/SkinFileTrace/obj/
