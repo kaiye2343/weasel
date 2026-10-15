@@ -43,9 +43,9 @@ try
     store.Reset(); Check(store.Selection().SkinId == null, "reset selection");
     var preferences = new DisplayPreferencesStore(store.Root);
     store.Select(skin, "plush", new SkinStyle { AnnotationPosition = "hidden", FontPoint = 21 });
-    preferences.Save(new() { AnnotationPosition = "above" });
+    preferences.Save(new() { AnnotationPosition = "above", FontMode = "skin" });
     Check(preferences.EffectiveStyle(store, skin, skin.Manifest.Variants[0]).AnnotationPosition == "above" && preferences.EffectiveStyle(store, skin, skin.Manifest.Variants[0]).FontPoint == 21, "display preference overrides annotation and preserves legacy style");
-    preferences.Save(new() { AnnotationPosition = "skin" });
+    preferences.Save(new() { AnnotationPosition = "skin", FontMode = "skin" });
     Check(preferences.EffectiveStyle(store, skin, skin.Manifest.Variants[0]).AnnotationPosition == "hidden", "follow skin preserves selected legacy override");
     store.Reset(); Check(preferences.Read().AnnotationPosition == "skin", "skin reset does not delete independent display preference");
     var pure = store.Import(Package("pure", edit: m => { m.Id = "neutral"; m.Name = "纯配色"; m.Variants = m.Variants.Take(1).ToList(); m.Variants[0].Layers.Clear(); m.Variants[0].Style.Frame = null; }));
@@ -123,6 +123,17 @@ try
     try { await sync.Run(profilesRoot); throw new Exception("Expected hash failure"); } catch (InvalidDataException) { }
     Check(runner.Calls == calls && File.ReadAllText(Path.Combine(profilesRoot, "sync", "phone-b", "wanxiang_work.userdb.txt")) == "phone-learning", "bad hash leaves local snapshots and engine untouched");
     Reject(() => new HttpWebDav(new Uri("http://example.invalid/dav"), "u", "secret"), "HTTPS required");
+    string annotationSchema = Path.Combine(profilesRoot, "wanxiang_work.schema.yaml");
+    File.WriteAllText(annotationSchema, File.ReadAllText(annotationSchema).Replace("\r\n", "\n").Replace("\n...\n", "\n") + "\nsuper_comment:\n  candidate_length: 2\n");
+    var annotated = profiles.Load("work");
+    Check(annotated.AnnotationLength == 2, "read Wanxiang annotation length restriction");
+    annotated.AnnotationLength = 64;
+    string dailyAnnotationBefore = File.ReadAllText(dailyCustom);
+    new ConfigurationPlan(profiles.PreviewScheme("wanxiang_work", annotated)).Save(profilesRoot);
+    Check(profiles.Load("work").AnnotationLength == 64 && File.ReadAllText(dailyCustom) == dailyAnnotationBefore, "long annotation patch preserves other scenario");
+    annotated.AnnotationLength = 65;
+    Reject(() => profiles.PreviewScheme("wanxiang_work", annotated), "annotation length range validation");
+    await DisplayTests.Run(temp, Check, Reject);
     Console.WriteLine($"{passed} tests passed.");
 }
 

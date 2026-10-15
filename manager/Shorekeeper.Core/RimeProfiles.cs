@@ -11,6 +11,7 @@ public sealed class InputSettings
     public string PinyinMode { get; set; } = "全拼";
     public bool EnableCorrection { get; set; } = true;
     public bool ContextReorder { get; set; } = true;
+    public int? AnnotationLength { get; set; }
     public List<string> FuzzyGroups { get; set; } = [];
     public Dictionary<string, string> Shortcuts { get; set; } = [];
 }
@@ -108,6 +109,7 @@ public sealed class RimeProfiles
         YamlNode? Value(string key) => RimeSettings.ReadNode(patch, key) ?? RimeSettings.ReadNode(effective, key);
         string? ValueText(string key) => (Value(key) as YamlScalarNode)?.Value;
         var result = new InputSettings { EnableCorrection = ValueText("translator/enable_correction") != "false" };
+        if (int.TryParse(ValueText("super_comment/candidate_length"), out int limit)) result.AnnotationLength = limit;
         var switches = Switches(schema);
         result.Simplified = ValueText($"switches/@{FindSwitch(switches, "s2s")}/reset") is not ("1" or "2" or "3");
         result.ContextReorder = ValueText($"switches/@{FindSwitch(switches, "context_reorder")}/reset") != "0";
@@ -136,6 +138,12 @@ public sealed class RimeProfiles
         var document = Read(file); var patch = Map(document, "patch");
         var switches = Switches(Read(scene ? Schema(id) : Path.Combine(Root, "wanxiang.schema.yaml")));
         var previous = LoadScheme(schemaId);
+        if (previous.AnnotationLength != settings.AnnotationLength)
+        {
+            if (previous.AnnotationLength == null || settings.AnnotationLength is null or < 1 or > 64)
+                throw new InvalidDataException("当前万象版本不支持候选注音长度设置。");
+            patch.Children[new YamlScalarNode("super_comment/candidate_length")] = new YamlScalarNode(settings.AnnotationLength.Value.ToString());
+        }
         if (previous.Simplified != settings.Simplified)
             patch.Children[new YamlScalarNode($"switches/@{FindSwitch(switches, "s2s")}/reset")] = new YamlScalarNode(settings.Simplified ? "0" : "1");
         if (previous.ContextReorder != settings.ContextReorder)
@@ -165,7 +173,7 @@ public sealed class RimeProfiles
             string phrases = Path.Combine(Root, $"shortcuts_{id}.dict.yaml");
             changes.Add(new(phrases, File.Exists(phrases) ? File.ReadAllText(phrases) : "", ShortcutDictionary(id, settings.Shortcuts)));
         }
-        if (changes.Count > 0 || previous.Simplified != settings.Simplified || previous.ContextReorder != settings.ContextReorder || previous.EnableCorrection != settings.EnableCorrection || previous.PinyinMode != settings.PinyinMode || !previous.FuzzyGroups.ToHashSet().SetEquals(settings.FuzzyGroups))
+        if (changes.Count > 0 || previous.AnnotationLength != settings.AnnotationLength || previous.Simplified != settings.Simplified || previous.ContextReorder != settings.ContextReorder || previous.EnableCorrection != settings.EnableCorrection || previous.PinyinMode != settings.PinyinMode || !previous.FuzzyGroups.ToHashSet().SetEquals(settings.FuzzyGroups))
             changes.Add(new(file, File.Exists(file) ? File.ReadAllText(file) : "", Serialize(document)));
         return changes;
     }
@@ -187,6 +195,7 @@ public sealed class RimeProfiles
             ("super_sequence/db_name", "sequence_" + id), ("input_stats/db_name", "stats_" + id) }) patch.Add(key, value);
         patch.Add("translator/enable_user_dict", "true");
         patch.Add("translator/enable_sentence", "true");
+        if (RimeSettings.ReadNode(doc, "super_comment/candidate_length") != null) patch.Add("super_comment/candidate_length", "64");
         patch.Add("translator/prism", "wanxiang_" + id);
         patch.Add("add_user_dict/enable_user_dict", "true");
         patch.Add("add_user_dict/enable_auto_phrase", "true");

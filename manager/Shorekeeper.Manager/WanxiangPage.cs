@@ -13,6 +13,7 @@ public sealed class WanxiangPage : UserControl, ISettingsPage
     readonly ComboBox mode = new();
     readonly CheckBox simplified = new() { Content = "默认简体" }, correction = new() { Content = "拼写纠错" }, reorder = new() { Content = "上下文排序" };
     readonly List<CheckBox> fuzzy = [];
+    readonly CheckBox longAnnotations = new() { Content = "万象长词注音（最多64字）" };
     readonly TextBox shortcuts = Elements.Editor("", true);
     InputSettings? original;
     string originalCustom = "";
@@ -36,6 +37,13 @@ public sealed class WanxiangPage : UserControl, ISettingsPage
         simplified.IsChecked = original.Simplified; correction.IsChecked = original.EnableCorrection; reorder.IsChecked = original.ContextReorder;
         foreach (var check in new[] { simplified, correction, reorder }) { check.Margin = new(0, 8, 0, 10); body.Children.Add(check); check.Checked += (_, _) => context.MarkChanged(); check.Unchecked += (_, _) => context.MarkChanged(); }
         mode.SelectionChanged += (_, _) => context.MarkChanged(); panel.Children.Add(Elements.Card(body));
+        var annotations = new StackPanel(); annotations.Children.Add(Elements.Text("候选注音来源", 20));
+        longAnnotations.IsEnabled = original.AnnotationLength != null; longAnnotations.IsChecked = original.AnnotationLength >= 64;
+        longAnnotations.Checked += (_, _) => context.MarkChanged(); longAnnotations.Unchecked += (_, _) => context.MarkChanged();
+        annotations.Children.Add(longAnnotations);
+        annotations.Children.Add(Elements.Text(original.AnnotationLength == null ? "当前方案未提供 super_comment/candidate_length，不写入无效补丁。" :
+            "作用范围：" + schema + "；来源：super_comment/candidate_length，当前上限 " + original.AnnotationLength + " 字。解除二字限制只使用已有注音，缺失读音留空。保存前预览并备份，部署后生效；显示开关与位置在“候选显示”中调整。", 12, true));
+        panel.Children.Add(Elements.Card(annotations));
         var f = new StackPanel(); f.Children.Add(Elements.Text("模糊音", 20)); f.Children.Add(Elements.Text("按需开启，避免不相关候选过多。保留不属于此模块的自定义拼写规则。", 12, true));
         var groups = new WrapPanel();
         foreach (string name in RimeProfiles.FuzzyNames) { var check = new CheckBox { Content = name.Replace('_', '/'), Tag = name, IsChecked = original.FuzzyGroups.Contains(name), Margin = new(0, 8, 28, 12) }; check.Checked += (_, _) => context.MarkChanged(); check.Unchecked += (_, _) => context.MarkChanged(); fuzzy.Add(check); groups.Children.Add(check); }
@@ -54,6 +62,7 @@ public sealed class WanxiangPage : UserControl, ISettingsPage
     {
         if (original == null) throw new InvalidOperationException("当前方案不支持万象设置。");
         var value = new InputSettings { PinyinMode = mode.SelectedItem as string ?? original.PinyinMode, Simplified = simplified.IsChecked == true, EnableCorrection = correction.IsChecked == true, ContextReorder = reorder.IsChecked == true, FuzzyGroups = fuzzy.Where(c => c.IsChecked == true).Select(c => (string)c.Tag).ToList(), Shortcuts = new(original.Shortcuts) };
+        value.AnnotationLength = original.AnnotationLength == null ? null : longAnnotations.IsChecked == true ? original.AnnotationLength >= 64 ? original.AnnotationLength : 64 : original.AnnotationLength < 64 ? original.AnnotationLength : 2;
         if (schema!.StartsWith("wanxiang_"))
         {
             value.Shortcuts.Clear(); foreach (string line in shortcuts.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries)) { var parts = line.TrimEnd('\r').Split('\t', 2); if (parts.Length != 2 || !value.Shortcuts.TryAdd(parts[0], parts[1])) throw new InvalidDataException("快捷短语须用 Tab 分隔，缩写不能重复。"); }
