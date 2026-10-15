@@ -242,6 +242,12 @@ struct UIStyle {
   std::vector<SkinImage> skin_images;
   int skin_border_style = 1, skin_border_inset = 0;
   int annotation_position = 0;
+  bool annotation_collapse_empty = true;
+  int annotation_gap = 2;
+  bool annotation_separator_enabled = true;
+  int annotation_separator_color = 0x55000000;
+  int annotation_separator_thickness = 1;
+  bool annotation_separator_fade = true;
   std::vector<int> skin_padding;
   std::wstring skin_frame_image;
   std::vector<int> skin_frame_slice;
@@ -406,6 +412,12 @@ struct UIStyle {
         skin_border_style != st.skin_border_style ||
         skin_border_inset != st.skin_border_inset ||
         annotation_position != st.annotation_position ||
+        annotation_collapse_empty != st.annotation_collapse_empty ||
+        annotation_gap != st.annotation_gap ||
+        annotation_separator_enabled != st.annotation_separator_enabled ||
+        annotation_separator_color != st.annotation_separator_color ||
+        annotation_separator_thickness != st.annotation_separator_thickness ||
+        annotation_separator_fade != st.annotation_separator_fade ||
         skin_padding != st.skin_padding ||
         skin_frame_image != st.skin_frame_image ||
         skin_frame_slice != st.skin_frame_slice ||
@@ -473,6 +485,9 @@ void serialize(Archive& ar, weasel::UIStyle& s, const unsigned int version) {
   ar & s.background_fill_mode;
   ar & s.skin_images;
   ar & s.skin_border_style & s.skin_border_inset & s.annotation_position;
+  ar & s.annotation_collapse_empty & s.annotation_gap;
+  ar & s.annotation_separator_enabled & s.annotation_separator_color;
+  ar & s.annotation_separator_thickness & s.annotation_separator_fade;
   ar & s.skin_padding & s.skin_frame_image & s.skin_frame_slice;
   ar & s.hover_type;
   ar & s.font_point;

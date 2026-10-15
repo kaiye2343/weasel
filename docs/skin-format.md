@@ -14,6 +14,8 @@
 
 `annotationPosition`：`above` / `beside` / `hidden`。显示 Rime 已提供的整条候选注释，不逐字推断发音。无注释时不补内容。
 
+可选 `annotationSeparator: {"enabled":true,"color":"#55000000","thickness":1,"fadeEnds":true}`，控制上方注音和候选文字之间的静态分隔线。粗细 1—4 DIP；默认半透明黑色、两端渐隐。仅在注音行存在时绘制，范围限于文字行，不延伸到装饰区。旧包无需增加此项。
+
 `paddingLeft/Right/Top/Bottom` 和 `candidateSpacing` 范围 0—256；单位为 96 DPI 逻辑像素。内容区会计入这些留白；图片可以使用留白和框外空间。作者应为角色预留足够空间，框架不会判断图片中哪些像素属于角色。
 
 `cornerRadius` 范围 0—64；`shadowRadius` 为 0—32；`borderWidth` 为 0—12；`borderInset` 为 0—32。`borderStyle`：`none` / `solid` / `dash`。颜色使用 `#AARRGGBB`：`backgroundColor`、`textColor`、`commentColor`、`highlightColor`、`highlightTextColor`、`borderColor`、`shadowColor`。

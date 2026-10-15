@@ -1,6 +1,7 @@
 #pragma once
 #include <WeaselIPCData.h>
 #include <WeaselUI.h>
+#include <filesystem>
 #include "StandardLayout.h"
 #include "Layout.h"
 #include "GdiplusBlur.h"
@@ -105,11 +106,17 @@ class WeaselPanel
   void _UpdateSkinGeometry();
   void _ReleaseSkinImages();
   void _DrawSkinImages(Gdiplus::Graphics& graphics, CPoint origin, bool below);
+  void _DrawAnnotationSeparators(CDCHandle dc);
+  void _TraceSkinState(const char* reason);
   CPoint m_skin_origin = CPoint(0, 0);
   CSize m_skin_size = CSize(0, 0);
   std::vector<SkinImage> m_skin_config;
   std::vector<std::unique_ptr<Gdiplus::Bitmap>> m_skin_bitmaps;
   std::vector<CRect> m_skin_rects;
+  ULONGLONG m_skin_retry_after = 0;
+  bool m_skin_load_failed = false;
+  size_t m_skin_revision = 0;
+  std::vector<std::filesystem::file_time_type> m_skin_stamps;
 
   weasel::Layout* m_layout;
   // 候选窗背景图：按路径缓存。本类每个输入线程一个实例，
@@ -151,7 +158,7 @@ class WeaselPanel
   CRect rcw;
   BYTE m_candidateCount;
 
-  bool hide_candidates;
+  bool hide_candidates = true;
   bool m_sticky;
   // for multi font_face & font_point
   PDWR pDWR;

@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "WeaselPanel.h"
 #include "SkinGeometry.h"
+#include <WeaselSkin.h>
+#include <fstream>
 
 #include <utility>
 #include <ShellScalingApi.h>
@@ -115,6 +117,8 @@ void WeaselPanel::_ReleaseSkinImages() {
   m_skin_bitmaps.clear();
   m_skin_config.clear();
   m_skin_rects.clear();
+  m_skin_stamps.clear();
+  m_skin_retry_after = 0; m_skin_load_failed = false;
 }
 
 void WeaselPanel::_UpdateSkinGeometry() {
@@ -126,10 +130,16 @@ void WeaselPanel::_UpdateSkinGeometry() {
       m_style.layout_type != UIStyle::LAYOUT_HORIZONTAL)
     return;
 
-  if (m_skin_config != m_style.skin_images) {
-    _ReleaseSkinImages();
-    m_skin_config = m_style.skin_images;
-    for (const auto& image : m_skin_config) {
+  std::vector<std::filesystem::file_time_type> stamps;
+  for (const auto& image : m_style.skin_images) {
+    std::error_code error;
+    stamps.push_back(std::filesystem::last_write_time(image.path, error));
+  }
+  if (m_skin_config != m_style.skin_images || stamps != m_skin_stamps) {
+    std::vector<std::unique_ptr<Gdiplus::Bitmap>> next;
+    bool valid = m_style.skin_images.empty() || GetTickCount64() >= m_skin_retry_after;
+    for (const auto& image : m_style.skin_images) {
+      if (!valid) break;
       std::unique_ptr<Gdiplus::Bitmap> bitmap(
           Gdiplus::Bitmap::FromFile(image.path.c_str()));
       if (bitmap && bitmap->GetLastStatus() == Gdiplus::Ok &&
@@ -142,7 +152,17 @@ void WeaselPanel::_UpdateSkinGeometry() {
       } else {
         bitmap.reset();
       }
-      m_skin_bitmaps.push_back(std::move(bitmap));
+      if (!bitmap || bitmap->GetLastStatus() != Gdiplus::Ok) { valid = false; break; }
+      next.push_back(std::move(bitmap));
+    }
+    if (valid) {
+      m_skin_config = m_style.skin_images; m_skin_bitmaps.swap(next);
+      m_skin_stamps = std::move(stamps); ++m_skin_revision;
+      m_skin_retry_after = 0; m_skin_load_failed = false;
+      _TraceSkinState("resources_ready");
+    } else if (GetTickCount64() >= m_skin_retry_after) {
+      if (!m_skin_load_failed) _TraceSkinState("decode_failed_preserving_previous_resources");
+      m_skin_load_failed = true; m_skin_retry_after = GetTickCount64() + 1000;
     }
   }
   SkinRect bounds{0, 0, base.cx, base.cy};
@@ -188,6 +208,12 @@ void WeaselPanel::_CreateLayout() {
 
 // 更新界面
 void WeaselPanel::Refresh() {
+  const bool styleChanged = m_style != m_ostyle;
+  const bool wasHidden = hide_candidates;
+  const UINT previousDpi = dpi;
+  const CSize previousSize = m_skin_size;
+  const CPoint previousOrigin = m_skin_origin;
+  const size_t previousResources = m_skin_revision;
   bool should_show_icon =
       (m_status.ascii_mode || !m_status.composing || !m_ctx.aux.empty());
   m_candidateCount = (BYTE)m_ctx.cinfo.candies.size();
@@ -221,8 +247,11 @@ void WeaselPanel::Refresh() {
     ReleaseDC(dc);
     _ResizeWindow();
     _RepositionWindow();
-    if (m_ctx != m_octx) {
+    const bool geometryChanged = previousSize != m_skin_size || previousOrigin != m_skin_origin;
+    if (m_ctx != m_octx || styleChanged || previousDpi != dpi || geometryChanged || previousResources != m_skin_revision || wasHidden != hide_candidates || m_redraw_by_monitor_change) {
       m_octx = m_ctx;
+      if ((!m_style.skin_images.empty() || !m_skin_config.empty()) && (styleChanged || geometryChanged || previousDpi != dpi || wasHidden != hide_candidates))
+        _TraceSkinState(styleChanged ? "style_redraw" : previousDpi != dpi ? "dpi_redraw" : "geometry_or_visibility_redraw");
       RedrawWindow();
     }
   }
@@ -1231,6 +1260,7 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
     }
     if (m_candidateCount)
       drawn |= _DrawCandidates(memDC, true);
+    _DrawAnnotationSeparators(memDC);
     // background and candidates back, hilite back drawing end
 
     // begin  texts drawing, if pRenderTarget failed, force to reinit
@@ -1301,6 +1331,48 @@ void WeaselPanel::RedrawWindow() {
   HDC hdc = GetDC();
   DoPaint(hdc);
   ReleaseDC(hdc);
+}
+
+void WeaselPanel::_TraceSkinState(const char* reason) {
+  try {
+    auto root = SkinDataRoot() / L"render-logs";
+    wchar_t overrideRoot[32768] = {};
+    if (GetEnvironmentVariableW(L"RIME_RENDER_LOG_ROOT", overrideRoot, 32768)) root = overrideRoot;
+    std::filesystem::create_directories(root);
+    auto path = root / (L"render-" + std::to_wstring(GetCurrentProcessId()) + L".log");
+    if (std::filesystem::exists(path) && std::filesystem::file_size(path) > 128 * 1024) {
+      std::filesystem::copy_file(path, path.wstring() + L".previous", std::filesystem::copy_options::overwrite_existing);
+      std::ofstream reset(path, std::ios::trunc);
+    }
+    std::ofstream stream(path, std::ios::app);
+    stream << GetTickCount64() << ' ' << reason << " requested=" << m_style.skin_images.size()
+           << " decoded=" << m_skin_bitmaps.size() << " canvas=" << m_skin_size.cx << ',' << m_skin_size.cy
+           << " origin=" << m_skin_origin.x << ',' << m_skin_origin.y << " dpi=" << dpi << '\n';
+  } catch (const std::exception&) { }
+}
+
+void WeaselPanel::_DrawAnnotationSeparators(CDCHandle dc) {
+  if (m_layout->annotation_separators.empty()) return;
+  DIBSECTION section = {};
+  if (!GetObjectW(GetCurrentObject(dc, OBJ_BITMAP), sizeof(section), &section) || !section.dsBm.bmBits) return;
+  Gdiplus::Bitmap bitmap(rcw.Width(), rcw.Height(), section.dsBm.bmWidthBytes,
+                         PixelFormat32bppPARGB, static_cast<BYTE*>(section.dsBm.bmBits));
+  Gdiplus::Graphics graphics(&bitmap);
+  const auto color = Gdiplus::Color(GDPCOLOR_FROM_COLORREF(m_style.annotation_separator_color));
+  for (const auto& rect : m_layout->annotation_separators) {
+    if (rect.IsRectEmpty()) continue;
+    Gdiplus::Rect target(rect.left, rect.top, rect.Width(), rect.Height());
+    if (m_style.annotation_separator_fade) {
+      Gdiplus::Color transparent(0, color.GetR(), color.GetG(), color.GetB());
+      Gdiplus::Color colors[] = {transparent, color, color, transparent};
+      Gdiplus::REAL positions[] = {0.f, .2f, .8f, 1.f};
+      Gdiplus::LinearGradientBrush brush(target, transparent, transparent, Gdiplus::LinearGradientModeHorizontal);
+      brush.SetInterpolationColors(colors, positions, 4); graphics.FillRectangle(&brush, target);
+    } else {
+      Gdiplus::SolidBrush brush(color); graphics.FillRectangle(&brush, target);
+    }
+  }
+  graphics.Flush(Gdiplus::FlushIntentionSync);
 }
 
 void WeaselPanel::_DrawSkinImages(Gdiplus::Graphics& graphics,
@@ -1375,8 +1447,15 @@ void WeaselPanel::_LayerUpdate(const CRect& rc, CDCHandle dc) {
   }
 
   BLENDFUNCTION bf = {AC_SRC_OVER, 0, 0XFF, AC_SRC_ALPHA};
-  UpdateLayeredWindow(m_hWnd, ScreenDC, &WindowPosAtScreen, &sz, dc,
-                      &PointOriginal, RGB(0, 0, 0), &bf, ULW_ALPHA);
+  if (UpdateLayeredWindow(m_hWnd, ScreenDC, &WindowPosAtScreen, &sz, dc,
+                          &PointOriginal, RGB(0, 0, 0), &bf, ULW_ALPHA)) {
+    // Opt-in diagnostic probe: count successful frame submissions, not WM_PAINT.
+    // RedrawWindow deliberately paints directly for applications which discard WM_PAINT.
+    if (::GetPropW(m_hWnd, L"Weasel.RenderProbe")) {
+      auto generation = reinterpret_cast<ULONG_PTR>(::GetPropW(m_hWnd, L"Weasel.RenderGeneration"));
+      ::SetPropW(m_hWnd, L"Weasel.RenderGeneration", reinterpret_cast<HANDLE>(generation + 1));
+    }
+  } else _TraceSkinState("layer_update_failed");
   if (skinDC) {
     SelectObject(skinDC, oldBitmap);
     DeleteDC(skinDC);

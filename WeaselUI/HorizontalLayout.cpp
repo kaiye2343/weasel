@@ -76,156 +76,79 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
   }
 
   int row_cnt = 0;
-  int max_width_of_rows = 0;
-  int height_of_rows[MAX_CANDIDATES_COUNT] = {0};    // height of every row
-  int row_of_candidate[MAX_CANDIDATES_COUNT] = {0};  // row info of every cand
-  int mintop_of_rows[MAX_CANDIDATES_COUNT] = {0};
-  // only when there are candidates
-  if (candidates_count) {
-    w = offsetX + real_margin_x;
-    for (auto i = 0; i < candidates_count && i < MAX_CANDIDATES_COUNT; ++i) {
-      int current_cand_width = 0;
-      if (i > 0)
-        w += _style.candidate_spacing;
-      if (id == i)
-        w += base_offset;
-      /* Label */
-      std::wstring label =
-          GetLabelText(labels, i, _style.label_text_format.c_str());
-      GetTextSizeDW(label, label.length(), pDWR->pLabelTextFormat, pDWR, &size);
-      _candidateLabelRects[i].SetRect(w, height, w + size.cx * labelFontValid,
-                                      height + size.cy);
-      w += size.cx * labelFontValid;
-      current_cand_width += size.cx * labelFontValid;
-
-      /* Text */
-      w += _style.hilite_spacing;
-      const std::wstring& text = candidates.at(i).str;
-      GetTextSizeDW(text, text.length(), pDWR->pTextFormat, pDWR, &size);
-      _candidateTextRects[i].SetRect(w, height, w + size.cx * textFontValid,
-                                     height + size.cy);
-      w += size.cx * textFontValid;
-      current_cand_width += (size.cx + _style.hilite_spacing) * textFontValid;
-
-      /* Comment */
-      bool cmtFontNotTrans =
-          (i == id && (_style.hilited_comment_text_color & 0xff000000)) ||
-          (i != id && (_style.comment_text_color & 0xff000000));
-      if (_style.annotation_position != 2 && !comments.at(i).str.empty() && cmtFontValid && cmtFontNotTrans) {
-        const std::wstring& comment = comments.at(i).str;
-        GetTextSizeDW(comment, comment.length(), pDWR->pCommentTextFormat, pDWR,
-                      &size);
-        w += _style.hilite_spacing;
-        _candidateCommentRects[i].SetRect(w, height, w + size.cx * cmtFontValid,
-                                          height + size.cy);
-        w += size.cx * cmtFontValid;
-        current_cand_width += (size.cx + _style.hilite_spacing) * cmtFontValid;
-      } else /* Used for highlighted candidate calculation below */
-        _candidateCommentRects[i].SetRect(w, height, w, height + size.cy);
-
-      if (_style.annotation_position == 1 && _candidateCommentRects[i].Width()) {
-        auto& labelRect = _candidateLabelRects[i];
-        auto& textRect = _candidateTextRects[i];
-        auto& commentRect = _candidateCommentRects[i];
-        const int start = labelRect.left;
-        const int textWidth = textRect.right - start;
-        const int blockWidth = max(textWidth, commentRect.Width());
-        const int shift = commentRect.Height() + _style.hilite_spacing;
-        labelRect.OffsetRect((blockWidth - textWidth) / 2, shift);
-        textRect.OffsetRect((blockWidth - textWidth) / 2, shift);
-        commentRect.MoveToXY(start + (blockWidth - commentRect.Width()) / 2, height);
-        w = start + blockWidth;
-        current_cand_width = blockWidth;
-      }
-
-      int base_left = (i == id) ? _candidateLabelRects[i].left - base_offset
-                                : _candidateLabelRects[i].left;
-      if (_style.annotation_position == 1)
-        base_left = min(base_left, _candidateCommentRects[i].left);
-      const int candidate_right = max(_candidateTextRects[i].right,
-                                      _candidateCommentRects[i].right);
-      // if not the first candidate of current row, and current candidate's
-      // right > _style.max_width
-      if (_style.max_width > 0 && (base_left > real_margin_x + offsetX) &&
-          (candidate_right - offsetX + real_margin_x >
-           _style.max_width)) {
-        // max_width_of_rows current row
-        max_width_of_rows =
-            max(max_width_of_rows, max(_candidateCommentRects[i - 1].right,
-                                      _candidateTextRects[i - 1].right));
-        w = offsetX + real_margin_x + (i == id ? base_offset : 0);
-        int ofx = w - _candidateLabelRects[i].left;
-        int ofy = height_of_rows[row_cnt] + _style.candidate_spacing;
-        // offset rects to next row
-        _candidateLabelRects[i].OffsetRect(ofx, ofy);
-        _candidateTextRects[i].OffsetRect(ofx, ofy);
-        _candidateCommentRects[i].OffsetRect(ofx, ofy);
-        // max width of next row, if it's the last candidate, make sure
-        // max_width_of_rows calc right
-        max_width_of_rows =
-            max(max_width_of_rows, max(_candidateCommentRects[i].right,
-                                      _candidateTextRects[i].right));
-        mintop_of_rows[row_cnt] = height;
-        height += ofy;
-        // re calc rect position, decrease offsetX for origin
-        w += current_cand_width;
-        row_cnt++;
-      } else
-        max_width_of_rows = max(max_width_of_rows, w);
-      // calculate height of current row is the max of three rects
-      mintop_of_rows[row_cnt] = height;
-      height_of_rows[row_cnt] =
-          max(height_of_rows[row_cnt], _candidateLabelRects[i].Height());
-      height_of_rows[row_cnt] =
-          max(height_of_rows[row_cnt], _candidateTextRects[i].Height());
-      height_of_rows[row_cnt] =
-          max(height_of_rows[row_cnt], _candidateCommentRects[i].Height());
-      if (_style.annotation_position == 1)
-        height_of_rows[row_cnt] = max(height_of_rows[row_cnt],
-            max(_candidateTextRects[i].bottom, _candidateLabelRects[i].bottom) - height);
-      // set row info of current candidate
-      row_of_candidate[i] = row_cnt;
+  int row_of_candidate[MAX_CANDIDATES_COUNT] = {0};
+  annotation_separators.clear();
+  const int count = min(candidates_count, MAX_CANDIDATES_COUNT);
+  if (count) {
+    CSize labelSizes[MAX_CANDIDATES_COUNT], textSizes[MAX_CANDIDATES_COUNT], commentSizes[MAX_CANDIDATES_COUNT];
+    int blockWidths[MAX_CANDIDATES_COUNT] = {0};
+    const bool above = _style.annotation_position == 1;
+    for (int i = 0; i < count; ++i) {
+      auto label = GetLabelText(labels, i, _style.label_text_format.c_str());
+      GetTextSizeDW(label, label.length(), pDWR->pLabelTextFormat, pDWR, &labelSizes[i]);
+      labelSizes[i].cx *= labelFontValid; labelSizes[i].cy *= labelFontValid;
+      const auto& text = candidates[i].str;
+      GetTextSizeDW(text, text.length(), pDWR->pTextFormat, pDWR, &textSizes[i]);
+      textSizes[i].cx *= textFontValid; textSizes[i].cy *= textFontValid;
+      commentSizes[i] = CSize(0, 0);
+      bool visible = cmtFontValid && ((i == id ? _style.hilited_comment_text_color : _style.comment_text_color) & 0xff000000);
+      if (_style.annotation_position != 2 && i < (int)comments.size() && !comments[i].empty() && visible)
+        GetTextSizeDW(comments[i].str, comments[i].str.length(), pDWR->pCommentTextFormat, pDWR, &commentSizes[i]);
+      int textWidth = labelSizes[i].cx + _style.hilite_spacing + textSizes[i].cx;
+      blockWidths[i] = above ? max(textWidth, commentSizes[i].cx) : textWidth + (commentSizes[i].cx ? _style.hilite_spacing + commentSizes[i].cx : 0);
     }
-
-    // reposition for alignment, exp when rect height not equal to
-    // height_of_rows
-    for (auto i = 0; i < candidates_count && i < MAX_CANDIDATES_COUNT; ++i) {
-      int base_left = (i == id) ? _candidateLabelRects[i].left - base_offset
-                                : _candidateLabelRects[i].left;
-      if (_style.annotation_position == 1)
-        base_left = min(base_left, _candidateCommentRects[i].left);
-      _candidateRects[i].SetRect(base_left, mintop_of_rows[row_of_candidate[i]],
-                                 max(_candidateTextRects[i].right,
-                                     _candidateCommentRects[i].right),
-                                 mintop_of_rows[row_of_candidate[i]] +
-                                     height_of_rows[row_of_candidate[i]]);
-      int ol = 0, ot = 0, oc = 0;
-      if (_style.annotation_position == 1) {
-        // Annotation and text already form a vertically arranged block.
-      } else if (_style.align_type == UIStyle::ALIGN_CENTER) {
-        ol = (height_of_rows[row_of_candidate[i]] -
-              _candidateLabelRects[i].Height()) /
-             2;
-        ot = (height_of_rows[row_of_candidate[i]] -
-              _candidateTextRects[i].Height()) /
-             2;
-        oc = (height_of_rows[row_of_candidate[i]] -
-              _candidateCommentRects[i].Height()) /
-             2;
-      } else if (_style.align_type == UIStyle::ALIGN_BOTTOM) {
-        ol = (height_of_rows[row_of_candidate[i]] -
-              _candidateLabelRects[i].Height());
-        ot = (height_of_rows[row_of_candidate[i]] -
-              _candidateTextRects[i].Height());
-        oc = (height_of_rows[row_of_candidate[i]] -
-              _candidateCommentRects[i].Height());
+    CSize blankComment(0, 0);
+    if (above && cmtFontValid) GetTextSizeDW(L"ā", 1, pDWR->pCommentTextFormat, pDWR, &blankComment);
+    int first = 0;
+    while (first < count) {
+      int last = first, rowWidth = 0, textHeight = 0, commentHeight = 0;
+      for (; last < count; ++last) {
+        int cell = blockWidths[last] + (last == id ? base_offset : 0);
+        int proposed = rowWidth + (last > first ? _style.candidate_spacing : 0) + cell;
+        if (_style.max_width > 0 && last > first && proposed + real_margin_x * 2 > _style.max_width) break;
+        rowWidth = proposed;
+        textHeight = max(textHeight, max(labelSizes[last].cy, textSizes[last].cy));
+        commentHeight = max(commentHeight, commentSizes[last].cy);
       }
-      _candidateLabelRects[i].OffsetRect(0, ol);
-      _candidateTextRects[i].OffsetRect(0, ot);
-      _candidateCommentRects[i].OffsetRect(0, oc);
+      bool hasAnnotation = above && cmtFontValid && (commentHeight > 0 || !_style.annotation_collapse_empty);
+      if (hasAnnotation) commentHeight = max(commentHeight, blankComment.cy);
+      int gap = hasAnnotation ? max(_style.annotation_gap, _style.annotation_separator_enabled ? _style.annotation_separator_thickness : 0) : 0;
+      int rowHeight = above ? textHeight + (hasAnnotation ? commentHeight + gap : 0) : max(textHeight, commentHeight);
+      int rowLeft = offsetX + real_margin_x;
+      w = rowLeft;
+      for (int i = first; i < last; ++i) {
+        if (i > first) w += _style.candidate_spacing;
+        int cellLeft = w;
+        if (i == id) w += base_offset;
+        int textWidth = labelSizes[i].cx + _style.hilite_spacing + textSizes[i].cx;
+        int textX = w + (above ? (blockWidths[i] - textWidth) / 2 : 0);
+        auto lineY = [&](int itemHeight) {
+          if (above) return height + rowHeight - itemHeight;
+          return height + (_style.align_type == UIStyle::ALIGN_CENTER ? (rowHeight - itemHeight) / 2 : _style.align_type == UIStyle::ALIGN_BOTTOM ? rowHeight - itemHeight : 0);
+        };
+        int labelY = lineY(labelSizes[i].cy), textY = lineY(textSizes[i].cy);
+        _candidateLabelRects[i].SetRect(textX, labelY, textX + labelSizes[i].cx, labelY + labelSizes[i].cy);
+        textX += labelSizes[i].cx + _style.hilite_spacing;
+        _candidateTextRects[i].SetRect(textX, textY, textX + textSizes[i].cx, textY + textSizes[i].cy);
+        if (commentSizes[i].cx) {
+          int commentX = above ? w + (blockWidths[i] - commentSizes[i].cx) / 2 : textX + textSizes[i].cx + _style.hilite_spacing;
+          int commentY = above ? height + commentHeight - commentSizes[i].cy : lineY(commentSizes[i].cy);
+          _candidateCommentRects[i].SetRect(commentX, commentY, commentX + commentSizes[i].cx, commentY + commentSizes[i].cy);
+        } else _candidateCommentRects[i].SetRectEmpty();
+        w += blockWidths[i];
+        _candidateRects[i].SetRect(cellLeft, height, w, height + rowHeight);
+        row_of_candidate[i] = row_cnt;
+      }
+      if (hasAnnotation && _style.annotation_separator_enabled) {
+        int lineTop = height + commentHeight + (gap - _style.annotation_separator_thickness) / 2;
+        annotation_separators.push_back(CRect(rowLeft, lineTop, w, lineTop + max(1, _style.annotation_separator_thickness)));
+      }
+      width = max(width, w);
+      height += rowHeight;
+      first = last;
+      if (first < count) { height += _style.candidate_spacing; ++row_cnt; }
     }
-    height = mintop_of_rows[row_cnt] + height_of_rows[row_cnt] - offsetY;
-    width = max(width, max_width_of_rows);
+    height -= offsetY;
   } else {
     height -= _style.spacing + offsetY;
     width += _style.hilite_spacing + _style.border;
@@ -276,6 +199,7 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
     _prePageRect.OffsetRect(left, top);
     _nextPageRect.OffsetRect(left, top);
     _statusIconRect.OffsetRect(left, top);
+    for (auto& rect : annotation_separators) rect.OffsetRect(left, top);
     for (int i = 0; i < candidates_count && i < MAX_CANDIDATES_COUNT; ++i) {
       _candidateRects[i].OffsetRect(left, top);
       _candidateLabelRects[i].OffsetRect(left, top);

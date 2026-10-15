@@ -58,6 +58,13 @@ long long ImageBytes(const std::filesystem::path& path) {
   return (long long)image.GetWidth() * image.GetHeight() * 4;
 }
 void ApplyStyle(const Object& spec, const std::filesystem::path& root, UIStyle& s) {
+  if (auto* separator = spec.if_contains("annotationSeparator")) {
+    const auto& line = separator->as_object();
+    s.annotation_separator_enabled = line.if_contains("enabled") ? line.at("enabled").as_bool() : true;
+    s.annotation_separator_color = Color(line, "color", 0x55000000);
+    s.annotation_separator_thickness = Number(line, "thickness", 1, 1, 4);
+    s.annotation_separator_fade = line.if_contains("fadeEnds") ? line.at("fadeEnds").as_bool() : true;
+  }
   if (auto* font = spec.if_contains("fontFace")) s.font_face = u8tow(font->as_string().c_str());
   s.label_font_face = s.comment_font_face = s.font_face;
   s.font_point = s.label_font_point = Number(spec, "fontPoint", s.font_point, 8, 48);
@@ -143,14 +150,8 @@ bool LoadActiveSkin(UIStyle& style, std::string& error) {
   try {
     auto root = SkinDataRoot(); auto statePath = root / L"state.json";
     auto applyDisplay = [&root](UIStyle& target) {
-      auto path = root / L"display.json";
-      if (!std::filesystem::exists(path)) return;
-      auto data = ReadObject(path);
-      if (data.at("schemaVersion").as_int64() != 1) throw std::runtime_error("Unsupported display preference version");
-      auto position = String(data, "annotationPosition");
-      if (position == "skin") return;
-      if (position != "above" && position != "beside" && position != "hidden") throw std::runtime_error("Unknown display annotation position");
-      target.annotation_position = position == "above" ? 1 : position == "hidden" ? 2 : 0;
+      std::string reason;
+      if (!LoadDisplayPreferences(root / L"display.json", target, reason)) throw std::runtime_error(reason);
     };
     if (!std::filesystem::exists(statePath)) { UIStyle next = style; applyDisplay(next); style = std::move(next); error.clear(); return true; }
     auto state = ReadObject(statePath);
@@ -169,5 +170,40 @@ bool LoadActiveSkin(UIStyle& style, std::string& error) {
     applyDisplay(next);
     style = std::move(next); error.clear(); return true;
   } catch (const std::exception& e) { error = e.what(); return false; }
+}
+bool LoadDisplayPreferences(const std::filesystem::path& path, UIStyle& style,
+                            std::string& error) {
+  try {
+    Object data = std::filesystem::exists(path) ? ReadObject(path) : Object{};
+    const int version = Number(data, "schemaVersion", 2, 1, 2);
+    UIStyle next = style;
+    auto text = [&data](const char* key, const char* fallback) { return data.if_contains(key) ? String(data, key) : std::string(fallback); };
+    auto position = text("annotationPosition", version == 1 ? "skin" : "above");
+    if (position != "skin" && position != "above" && position != "beside" && position != "hidden") throw std::runtime_error("Unknown annotation position");
+    bool enabled = data.if_contains("annotationEnabled") ? data.at("annotationEnabled").as_bool() : true;
+    if (!enabled) next.annotation_position = 2;
+    else if (position != "skin") next.annotation_position = position == "above" ? 1 : position == "hidden" ? 2 : 0;
+    if (version == 2) {
+      auto empty = text("emptyAnnotationMode", "collapse");
+      if (empty != "collapse" && empty != "reserve") throw std::runtime_error("Unknown empty annotation mode");
+      next.annotation_collapse_empty = empty == "collapse";
+      auto fontMode = text("fontMode", "user");
+      if (fontMode != "user" && fontMode != "skin") throw std::runtime_error("Unknown font mode");
+      int font = Number(data, "fontPoint", 12, 8, 48), comment = Number(data, "commentFontPoint", 10, 8, 32);
+      if (fontMode == "user") { next.font_point = next.label_font_point = font; next.comment_font_point = comment; }
+      auto density = text("density", "compact");
+      if (density != "compact" && density != "standard" && density != "skin") throw std::runtime_error("Unknown display density");
+      if (density != "skin") {
+        int inset = density == "compact" ? 4 : 6;
+        if (next.margin_x >= 0) next.margin_x = inset;
+        if (next.margin_y >= 0) next.margin_y = inset;
+        next.hilite_padding_x = next.hilite_padding_y = inset;
+        next.candidate_spacing = density == "compact" ? 8 : 12;
+        next.hilite_spacing = density == "compact" ? 2 : 3;
+        next.annotation_gap = density == "compact" ? 2 : 3;
+      }
+    }
+    style = std::move(next); error.clear(); return true;
+  } catch (const std::exception& ex) { error = ex.what(); return false; }
 }
 }

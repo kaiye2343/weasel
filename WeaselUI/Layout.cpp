@@ -31,6 +31,8 @@ Layout::Layout(const UIStyle& style,
     _style.spacing = (int)(_style.spacing * scale);
     _style.candidate_spacing = (int)(_style.candidate_spacing * scale);
     _style.hilite_spacing = (int)(_style.hilite_spacing * scale);
+    _style.annotation_gap = (int)(_style.annotation_gap * scale);
+    _style.annotation_separator_thickness = (int)(_style.annotation_separator_thickness * scale);
     _style.hilite_padding_x = (int)(_style.hilite_padding_x * scale);
     _style.hilite_padding_y = (int)(_style.hilite_padding_y * scale);
     _style.round_corner = (int)(_style.round_corner * scale);

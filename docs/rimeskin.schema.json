@@ -188,6 +188,27 @@
               "shadowColor": {
                 "type": "string",
                 "pattern": "^#[0-9a-fA-F]{8}$"
+              },
+              "annotationSeparator": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "color": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{8}$"
+                  },
+                  "thickness": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4
+                  },
+                  "fadeEnds": {
+                    "type": "boolean"
+                  }
+                }
               }
             },
             "required": []

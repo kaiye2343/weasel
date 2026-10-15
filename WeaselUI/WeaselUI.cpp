@@ -39,8 +39,10 @@ UINT_PTR UIImpl::timer = 0;
 void UIImpl::Show() {
   if (!panel.IsWindow())
     return;
+  bool needsPaint = !shown || !panel.IsWindowVisible();
   panel.ShowWindow(SW_SHOWNA);
   shown = true;
+  if (needsPaint) panel.RedrawWindow();
   if (timer) {
     KillTimer(panel.m_hWnd, AUTOHIDE_TIMER);
     timer = 0;

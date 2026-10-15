@@ -113,6 +113,8 @@ jobs:
           call build.bat installer
           if errorlevel 1 exit /b 1
       - name: Package skin samples and provenance
+        # Negative tests compile the old algorithms, require their exact failure codes,
+        # then restore and rebuild the repaired algorithms before packaging.
         shell: pwsh
         run: |
           foreach ($file in @('output/WeaselServer.exe', 'output/WeaselDeployer.exe', 'output/weasel.dll', 'output/weaselx64.dll', 'output/Win32/WeaselServer.exe')) {
@@ -120,6 +122,7 @@ jobs:
           }
           msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$env:GITHUB_WORKSPACE\"
           if ($LASTEXITCODE -ne 0) { throw 'Native preview build failed' }
+          ./tools/test-native-regressions.ps1
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--layout-test' -WindowStyle Hidden -PassThru -Wait
           if ($test.ExitCode -ne 0) { throw "Native annotation/DPI layout tests failed: $($test.ExitCode)" }
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--preferences-test' -WindowStyle Hidden -PassThru -Wait
@@ -135,6 +138,8 @@ jobs:
             $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--manifest', "$env:GITHUB_WORKSPACE/skins/shorekeeper/manifest.json", '--variant', $variant, '--smoke', 'true') -WindowStyle Hidden -PassThru -Wait
             if ($test.ExitCode -ne 0) { throw "Native skin load/redraw failed for $variant`: $($test.ExitCode)" }
           }
+          $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--manifest', "$env:GITHUB_WORKSPACE/skins/shorekeeper/manifest.json", '--variant', 'watermelon', '--redraw-test', 'true') -WindowStyle Hidden -PassThru -Wait
+          if ($test.ExitCode -ne 0) { throw "Style-only repaint/resource rollback regression failed: $($test.ExitCode)" }
           foreach ($file in @('WeaselSkinPreview.exe', 'WeaselServer.exe', 'rime.dll', 'WinSparkle.dll')) {
             if (!(Test-Path "output/$file")) { throw "Missing tool dependency: $file" }
             Copy-Item "output/$file" output/archives/tools/
@@ -169,7 +174,10 @@ jobs:
           path: |
             msbuild*.log
             native-preferences-test.log
+            native-layout-test.log
+            native-redraw-test.log
             .tools/native-learning/
             .tools/settings-smoke/skins/ui-smoke-error.txt
+            .tools/native-baseline-*/native-*-test.log
           if-no-files-found: ignore
           retention-days: 7

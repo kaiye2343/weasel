@@ -20,7 +20,46 @@ static bool long_text = false;
 static std::filesystem::path manifest;
 static std::string variant;
 static std::filesystem::path overrides;
+static std::filesystem::path display_preferences;
 static int smoke_frames = 0;
+static HWND CandidateWindow(HWND owner) {
+  struct Search { HWND owner, result; int count; } search{owner, nullptr, 0};
+  EnumThreadWindows(GetCurrentThreadId(), [](HWND window, LPARAM data) -> BOOL {
+    auto& found = *reinterpret_cast<Search*>(data);
+    if (GetWindow(window, GW_OWNER) == found.owner && (GetWindowLongW(window, GWL_STYLE) & WS_POPUP)) { found.result = window; ++found.count; }
+    return TRUE;
+  }, reinterpret_cast<LPARAM>(&search));
+  return search.count == 1 ? search.result : nullptr;
+}
+static void PumpPreview() { MSG message; while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&message); DispatchMessageW(&message); } }
+static bool RedrawTests(HWND owner) {
+  std::ofstream report("native-redraw-test.log");
+  ShowWindow(owner, SW_SHOWNOACTIVATE); ui.Show(); PumpPreview();
+  HWND panel = CandidateWindow(owner); if (!panel) return false;
+  SetPropW(panel, L"Weasel.RenderProbe", reinterpret_cast<HANDLE>(1));
+  auto frames = [panel]() { return reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.RenderGeneration")); };
+  auto beforeFrames = frames();
+  ui.style().font_point += 1; ui.Refresh(); PumpPreview();
+  bool passed = frames() > beforeFrames;
+  report << "style-only frames=" << frames() - beforeFrames << '\n';
+  beforeFrames = frames(); ui.Hide(); ui.Show(); PumpPreview(); passed = passed && frames() > beforeFrames;
+  report << "reshow frames=" << frames() - beforeFrames << '\n';
+  if (!ui.style().skin_images.empty()) {
+    RECT before, after; GetWindowRect(panel, &before);
+    auto images = ui.style().skin_images;
+    ui.style().skin_images[0].path += L".missing"; ui.Refresh(); PumpPreview();
+    GetWindowRect(panel, &after);
+    passed = passed && EqualRect(&before, &after);
+    report << "resource rollback keeps canvas=" << (EqualRect(&before, &after) != FALSE) << '\n';
+    ui.style().skin_images = images; ui.Refresh(); PumpPreview();
+  }
+  beforeFrames = frames();
+  for (int i = 0; i < 30; ++i) { ui.style().annotation_position = (ui.style().annotation_position + 1) % 3; ui.Refresh(); PumpPreview(); }
+  passed = passed && frames() - beforeFrames >= 30;
+  report << "transition frames=" << frames() - beforeFrames << " passed=" << passed;
+  RemovePropW(panel, L"Weasel.RenderProbe"); RemovePropW(panel, L"Weasel.RenderGeneration");
+  return passed;
+}
 static bool PreferenceTests() {
   wchar_t previous[32768] = {}; GetEnvironmentVariableW(L"LOCALAPPDATA", previous, 32768);
   auto temporary = std::filesystem::absolute(std::filesystem::temp_directory_path());
@@ -46,14 +85,24 @@ static bool PreferenceTests() {
     write(root / L"display.json", R"({"schemaVersion":1,"annotationPosition":"invalid"})");
     auto before = style;
     if (weasel::LoadActiveSkin(style, error) || style != before) throw std::runtime_error("Failure modified style");
+    write(root / L"display.json", R"({"schemaVersion":2,"annotationEnabled":true,"annotationPosition":"above","emptyAnnotationMode":"reserve","fontMode":"user","fontPoint":12,"commentFontPoint":10,"density":"compact"})");
+    if (!weasel::LoadActiveSkin(style, error) || style.font_point != 12 || style.label_font_point != 12 || style.comment_font_point != 10 ||
+        style.candidate_spacing != 8 || style.margin_x != 4 || style.annotation_gap != 2 || style.annotation_collapse_empty) throw std::runtime_error("V2 compact preference failed: " + error);
+    auto padding = style.skin_padding;
+    write(root / L"display.json", R"({"schemaVersion":2,"annotationEnabled":false,"fontMode":"skin","density":"standard"})");
+    if (!weasel::LoadActiveSkin(style, error) || style.annotation_position != 2 || style.candidate_spacing != 12 || style.margin_x != 6 || style.skin_padding != padding) throw std::runtime_error("V2 density/hidden/padding failed");
+    before = style;
+    write(root / L"display.json", R"({"schemaVersion":2,"fontPoint":0})");
+    if (weasel::LoadActiveSkin(style, error) || style != before) throw std::runtime_error("Invalid V2 preference modified style");
     passed = true;
-    report << "PASS no-skin, pure-color, legacy override, follow-skin and failure rollback";
+    report << "PASS no-skin, pure-color, legacy override, follow-skin, V2 fonts/density/visibility and failure rollback";
   } catch (const std::exception& error) { report << error.what(); passed = false; }
   SetEnvironmentVariableW(L"LOCALAPPDATA", *previous ? previous : nullptr);
   if (sandbox.parent_path() == temporary) std::filesystem::remove_all(sandbox);
   return passed;
 }
 static bool LayoutTests(HWND window) {
+  std::ofstream report("native-layout-test.log");
   CClientDC dc(window);
   weasel::Context sample; weasel::Status state; state.composing = true;
   for (const auto* word : {L"守岸人", L"很长的一条候选内容用来检查边界", L"你好"}) {
@@ -69,14 +118,30 @@ static bool LayoutTests(HWND window) {
     layout.DoLayout(CDCHandle(dc.m_hDC), resources); auto size = layout.GetContentSize();
     for (int i = 0; i < 3; ++i) {
       auto candidate = layout.GetCandidateRect(i), text = layout.GetCandidateTextRect(i);
+      report << "dpi=" << dpi << " position=" << position << " item=" << i << " size=" << size.cx << ',' << size.cy
+             << " candidate=" << candidate.left << ',' << candidate.top << ',' << candidate.right << ',' << candidate.bottom
+             << " text=" << text.left << ',' << text.top << ',' << text.right << ',' << text.bottom << '\n';
       if (candidate.left > text.left || candidate.top > text.top || candidate.right < text.right || candidate.bottom < text.bottom ||
           candidate.left < 0 || candidate.top < 0 || candidate.right > size.cx || candidate.bottom > size.cy) return false;
       auto comment = layout.GetCandidateCommentRect(i);
+      if (position == 1) for (int j = 0; j < i; ++j)
+        if (layout.GetCandidateRect(j).top == candidate.top && layout.GetCandidateTextRect(j).bottom != text.bottom) return false;
       if (position == 2 && comment.Width()) return false;
       if (position == 1 && i == 0 && comment.bottom >= text.top) return false;
       if (comment.Width() && (candidate.left > comment.left || candidate.right < comment.right || candidate.top > comment.top || candidate.bottom < comment.bottom)) return false;
     }
   }
+  for (auto& comment : sample.cinfo.comments) comment.clear();
+  auto style = ui.style(); style.annotation_position = 1; style.annotation_collapse_empty = true;
+  auto resources = std::make_shared<weasel::DirectWriteResources>(style, 144);
+  weasel::HorizontalLayout collapsed(style, sample, state, resources);
+  collapsed.DoLayout(CDCHandle(dc.m_hDC), resources);
+  style.annotation_collapse_empty = false;
+  weasel::HorizontalLayout reserved(style, sample, state, resources);
+  reserved.DoLayout(CDCHandle(dc.m_hDC), resources);
+  if (reserved.GetContentSize().cy <= collapsed.GetContentSize().cy) return false;
+  if (!collapsed.annotation_separators.empty() || reserved.annotation_separators.empty()) return false;
+  report << "PASS mixed annotations, row baselines, candidate hit bounds and empty-row collapse/reserve";
   return true;
 }
 static void UpdatePreview(HWND window) {
@@ -126,16 +191,21 @@ static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w, LPARAM l) 
   return DefWindowProc(hwnd, message, w, l);
 }
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
+  auto previewLogs = std::filesystem::temp_directory_path() / (L"RimePreviewRender-" + std::to_wstring(GetCurrentProcessId()));
+  SetEnvironmentVariableW(L"RIME_RENDER_LOG_ROOT", previewLogs.c_str());
   SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
   CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED); _Module.Init(nullptr, instance);
   int count = 0; LPWSTR* args = CommandLineToArgvW(GetCommandLineW(), &count);
   bool layout_test = count == 2 && !wcscmp(args[1], L"--layout-test");
   bool preference_test = count == 2 && !wcscmp(args[1], L"--preferences-test");
+  bool redraw_test = count == 2 && !wcscmp(args[1], L"--redraw-test");
   for (int i = 1; i + 1 < count; i += 2) {
     if (!wcscmp(args[i], L"--manifest")) manifest = args[i + 1];
     if (!wcscmp(args[i], L"--variant")) variant = wtou8(args[i + 1]);
     if (!wcscmp(args[i], L"--style-overrides")) overrides = args[i + 1];
+    if (!wcscmp(args[i], L"--display-preferences")) display_preferences = args[i + 1];
     if (!wcscmp(args[i], L"--smoke")) smoke_frames = 20;
+    if (!wcscmp(args[i], L"--redraw-test")) redraw_test = true;
   }
   LocalFree(args);
   WNDCLASSW cls{}; cls.hInstance = instance; cls.lpfnWndProc = WindowProc;
@@ -165,6 +235,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     MessageBoxW(window, u8tow(error).c_str(), L"皮肤加载失败", MB_ICONERROR);
     DestroyWindow(window); _Module.Term(); CoUninitialize(); return 1;
   }
+  if (!display_preferences.empty() && !weasel::LoadDisplayPreferences(display_preferences, style, error)) {
+    MessageBoxW(window, u8tow(error).c_str(), L"显示偏好加载失败", MB_ICONERROR);
+    DestroyWindow(window); _Module.Term(); CoUninitialize(); return 1;
+  }
   status.composing = true; status.schema_id = L"preview"; status.schema_name = L"隔离预览";
   ui.SetUICallBack([window](size_t* selected, size_t* highlighted, bool*, bool*) {
     if (selected) SetWindowTextW(window, (L"已点击候选 " + std::to_wstring(*selected + 1)).c_str());
@@ -172,6 +246,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   });
   style.hover_type = weasel::UIStyle::HILITE;
   ShowWindow(window, show); UpdatePreview(window);
+  if (redraw_test) { bool passed = RedrawTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 6; }
   MSG msg; while (GetMessageW(&msg, nullptr, 0, 0) > 0) { TranslateMessage(&msg); DispatchMessageW(&msg); }
   _Module.Term(); CoUninitialize(); return 0;
 }

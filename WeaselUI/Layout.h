@@ -109,6 +109,7 @@ class Layout {
   int mark_height = 0;
   int real_margin_x;
   int real_margin_y;
+  std::vector<CRect> annotation_separators;
   UIStyle _style;
 
  protected:
