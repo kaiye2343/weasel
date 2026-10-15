@@ -1353,6 +1353,7 @@ void WeaselPanel::_TraceSkinState(const char* reason) {
 
 void WeaselPanel::_DrawAnnotationSeparators(CDCHandle dc) {
   if (m_layout->annotation_separators.empty()) return;
+  GdiFlush(); // Complete queued GDI backgrounds before writing their DIB pixels directly.
   DIBSECTION section = {};
   if (!GetObjectW(GetCurrentObject(dc, OBJ_BITMAP), sizeof(section), &section) || !section.dsBm.bmBits) return;
   Gdiplus::Bitmap bitmap(rcw.Width(), rcw.Height(), section.dsBm.bmWidthBytes,

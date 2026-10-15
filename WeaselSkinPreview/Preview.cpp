@@ -65,6 +65,13 @@ static bool RedrawTests(HWND owner) {
   passed = passed && hiddenStable;
   report << "\nhidden annotation pixels unchanged=" << hiddenStable;
   ui.ctx().cinfo.comments = originalComments;
+  ui.style().annotation_position = 1; ui.style().annotation_separator_enabled = true;
+  ui.Refresh(); PumpPreview();
+  HANDLE separatorHash = GetPropW(panel, L"Weasel.RenderHash");
+  ui.style().annotation_separator_enabled = false; ui.Refresh(); PumpPreview();
+  bool separatorVisible = separatorHash && separatorHash != GetPropW(panel, L"Weasel.RenderHash");
+  passed = passed && separatorVisible;
+  report << "\nannotation separator changes pixels=" << separatorVisible;
   RemovePropW(panel, L"Weasel.RenderProbe"); RemovePropW(panel, L"Weasel.RenderGeneration");
   RemovePropW(panel, L"Weasel.RenderHash");
   return passed;
