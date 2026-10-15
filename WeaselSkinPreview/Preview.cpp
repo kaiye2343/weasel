@@ -25,6 +25,7 @@ static int smoke_frames = 0;
 static void PumpPreview() { MSG message; while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&message); DispatchMessageW(&message); } }
 static bool RedrawTests(HWND owner) {
   std::ofstream report("native-redraw-test.log");
+  KillTimer(owner, 1); // Keep synthetic data stable while testing appearance-only changes.
   ShowWindow(owner, SW_SHOWNOACTIVATE); ui.Show(); PumpPreview();
   HWND panel = ui.GetCandidateWindow(); if (!panel) { report << "Candidate window unavailable"; return false; }
   SetPropW(panel, L"Weasel.RenderProbe", reinterpret_cast<HANDLE>(1));
@@ -40,18 +41,32 @@ static bool RedrawTests(HWND owner) {
   report << "reshow frames=" << frames() - beforeFrames << '\n';
   if (!ui.style().skin_images.empty()) {
     RECT before, after; GetWindowRect(panel, &before);
+    HANDLE beforeHash = GetPropW(panel, L"Weasel.RenderHash");
     auto images = ui.style().skin_images;
     ui.style().skin_images[0].path += L".missing"; ui.Refresh(); PumpPreview();
     GetWindowRect(panel, &after);
     passed = passed && EqualRect(&before, &after);
     report << "resource rollback keeps canvas=" << (EqualRect(&before, &after) != FALSE) << '\n';
+    bool samePixels = beforeHash && beforeHash == GetPropW(panel, L"Weasel.RenderHash");
+    passed = passed && samePixels;
+    report << "resource rollback keeps pixels=" << samePixels << '\n';
     ui.style().skin_images = images; ui.Refresh(); PumpPreview();
   }
   beforeFrames = frames();
   for (int i = 0; i < 30; ++i) { ui.style().annotation_position = (ui.style().annotation_position + 1) % 3; ui.Refresh(); PumpPreview(); }
   passed = passed && frames() - beforeFrames >= 30;
   report << "transition frames=" << frames() - beforeFrames << " passed=" << passed;
+  ui.style().annotation_position = 2; ui.Refresh(); PumpPreview();
+  HANDLE hiddenHash = GetPropW(panel, L"Weasel.RenderHash");
+  auto originalComments = ui.ctx().cinfo.comments;
+  for (auto& comment : ui.ctx().cinfo.comments) comment.str = L"this annotation must remain invisible";
+  ui.Refresh(); PumpPreview();
+  bool hiddenStable = hiddenHash && hiddenHash == GetPropW(panel, L"Weasel.RenderHash");
+  passed = passed && hiddenStable;
+  report << "\nhidden annotation pixels unchanged=" << hiddenStable;
+  ui.ctx().cinfo.comments = originalComments;
   RemovePropW(panel, L"Weasel.RenderProbe"); RemovePropW(panel, L"Weasel.RenderGeneration");
+  RemovePropW(panel, L"Weasel.RenderHash");
   return passed;
 }
 static bool PreferenceTests() {

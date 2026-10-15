@@ -1120,7 +1120,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
       }
       // Draw comment
       std::wstring comment = comments.at(i).str;
-      if (!comment.empty() && COLORNOTTRANSPARENT(comment_text_color)) {
+      if (m_style.annotation_position != 2 && !comment.empty() && COLORNOTTRANSPARENT(comment_text_color)) {
         rect = m_layout->GetCandidateCommentRect((int)i);
         if (m_istorepos)
           rect.OffsetRect(0, m_offsetys[i]);
@@ -1454,6 +1454,14 @@ void WeaselPanel::_LayerUpdate(const CRect& rc, CDCHandle dc) {
     if (::GetPropW(m_hWnd, L"Weasel.RenderProbe")) {
       auto generation = reinterpret_cast<ULONG_PTR>(::GetPropW(m_hWnd, L"Weasel.RenderGeneration"));
       ::SetPropW(m_hWnd, L"Weasel.RenderGeneration", reinterpret_cast<HANDLE>(generation + 1));
+      DIBSECTION section = {};
+      if (::GetObjectW(::GetCurrentObject(dc, OBJ_BITMAP), sizeof(section), &section) && section.dsBm.bmBits) {
+        auto pixels = static_cast<const BYTE*>(section.dsBm.bmBits);
+        auto length = static_cast<size_t>(section.dsBm.bmWidthBytes) * abs(section.dsBm.bmHeight);
+        ULONG_PTR hash = 2166136261UL;
+        for (size_t i = 0; i < length; ++i) hash = (hash ^ pixels[i]) * 16777619UL;
+        ::SetPropW(m_hWnd, L"Weasel.RenderHash", reinterpret_cast<HANDLE>(hash));
+      }
     }
   } else _TraceSkinState("layer_update_failed");
   if (skinDC) {
@@ -1607,7 +1615,7 @@ void WeaselPanel::_TextOut(const CRect& rc,
                            const size_t& cch,
                            const int& inColor,
                            IDWriteTextFormat1* const pTextFormat) {
-  if (pTextFormat == NULL)
+  if (pTextFormat == NULL || rc.IsRectEmpty())
     return;
   float r = (float)(GetRValue(inColor)) / 255.0f;
   float g = (float)(GetGValue(inColor)) / 255.0f;

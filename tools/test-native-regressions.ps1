@@ -36,6 +36,14 @@ try {
     if (::GetPropW(m_hWnd, L"Weasel.RenderProbe")) {
       auto generation = reinterpret_cast<ULONG_PTR>(::GetPropW(m_hWnd, L"Weasel.RenderGeneration"));
       ::SetPropW(m_hWnd, L"Weasel.RenderGeneration", reinterpret_cast<HANDLE>(generation + 1));
+      DIBSECTION section = {};
+      if (::GetObjectW(::GetCurrentObject(dc, OBJ_BITMAP), sizeof(section), &section) && section.dsBm.bmBits) {
+        auto pixels = static_cast<const BYTE*>(section.dsBm.bmBits);
+        auto length = static_cast<size_t>(section.dsBm.bmWidthBytes) * abs(section.dsBm.bmHeight);
+        ULONG_PTR hash = 2166136261UL;
+        for (size_t i = 0; i < length; ++i) hash = (hash ^ pixels[i]) * 16777619UL;
+        ::SetPropW(m_hWnd, L"Weasel.RenderHash", reinterpret_cast<HANDLE>(hash));
+      }
     }
   }
 '@
