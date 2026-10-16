@@ -13,6 +13,7 @@ const valid=path.join(out,"valid.rimeskin");fs.writeFileSync(valid,P.packageByte
  const check=async(name,fn)=>{await fn();passed++;console.log("PASS "+name);};
  try{
  await page.goto(pathToFileURL(path.join(root,"designer/index.html")).href);await page.locator("#canvas").waitFor();
+ await check("editor stays inside viewport",async()=>assert.equal(await page.evaluate(()=>document.documentElement.scrollHeight<=innerHeight),true));
  await check("file URL works offline",async()=>{assert.equal(await page.title(),"Rime · 皮肤设计器");assert.equal(errors.length,0);});
  const annotated=await page.evaluate(()=>geometry.height);
  await page.locator('[data-mode="plain"]').click();const plain=await page.evaluate(()=>geometry.height);
@@ -39,7 +40,27 @@ const valid=path.join(out,"valid.rimeskin");fs.writeFileSync(valid,P.packageByte
  const bad=path.join(out,"bad.rimeskin");fs.writeFileSync(bad,new Uint8Array(22));await page.locator("#package-file").setInputFiles(bad);
  await page.waitForFunction(()=>document.querySelector("#status").textContent.includes("ZIP"));
  await check("failed import retains existing document",async()=>assert.equal(await page.locator("#variants button").count(),2));
+ const dir=path.join(root,"skins/studio-demo"),demo=JSON.parse(fs.readFileSync(path.join(dir,"manifest.json"),"utf8"));
+ const demoAssets=new Map(fs.readdirSync(dir).filter(n=>n.endsWith(".png")).map(n=>[n,new Uint8Array(fs.readFileSync(path.join(dir,n)))]));
+ const deflateZip=require("./designer_zip_fixture.cjs"),compressed=path.join(out,"compressed-demo.rimeskin");
+ fs.writeFileSync(compressed,deflateZip(new Map([["manifest.json",new TextEncoder().encode(JSON.stringify(demo))],...demoAssets])));
+ await page.locator("#package-file").setInputFiles(compressed);await page.waitForFunction(()=>document.querySelector("#status").textContent.startsWith("导入完成"));
+ await check("browser imports standard Deflate and nine-slice",async()=>{assert.equal(await page.evaluate(()=>current().style.frame.path),"frame.png");assert.equal(await page.evaluate(()=>geometry.hasAnnotation),true);});
+ await page.locator("#variants button").nth(1).click();await page.waitForFunction(()=>current().id==="night");
+ await check("variant resource cache changes transactionally",async()=>assert.equal(await page.evaluate(()=>images.size),1));
+ await page.locator("#variants button").first().click();await page.waitForFunction(()=>current().id==="light");
  await page.locator("#select-frame").click();
+ await page.getByLabel("字体",{exact:true}).fill("");await page.getByLabel("字体",{exact:true}).press("Tab");
+ await check("invalid font edit does not throw",async()=>assert.notEqual(await page.getByLabel("字体",{exact:true}).inputValue(),""));
+ await page.locator("#layers .layer").first().click();
+ const initial=await page.evaluate(()=>current().layers[0].x);const cb=await page.locator("#canvas").boundingBox();
+ const pt=await page.evaluate(()=>{const l=geometry.layers[0];return{x:(view.x+l.left+l.width/2)*view.scale,y:(view.y+l.top+l.height/2)*view.scale};});
+ await page.mouse.move(cb.x+pt.x,cb.y+pt.y);await page.mouse.down();await page.mouse.move(cb.x+pt.x-10,cb.y+pt.y);await page.mouse.up();
+ await page.locator("#stage").click({position:{x:30,y:100}});await page.keyboard.press("Control+z");await page.waitForFunction(x=>current().layers[0].x===x,initial);
+ await check("undo restores image placement",async()=>assert.equal(await page.evaluate(()=>current().layers[0].x),initial));
+ await page.locator("#select-frame").click();
+ // Fresh export also clears earlier validation notices and creates a realistic preview.
+ const demoDownload=page.waitForEvent("download");await page.locator("#export-project").click();await(await demoDownload).saveAs(path.join(out,"demo-export.rimeskin"));
  const shot=process.env.DESIGNER_SCREENSHOT||path.join(out,"designer.png");await page.screenshot({path:shot,fullPage:true});
  for(const scale of["1","1.5","2"]){await page.locator("#zoom").selectOption(scale);await check("zoom "+scale+" finite geometry",async()=>assert.equal(await page.evaluate(()=>Number.isFinite(view.scale)&&view.scale>0),true));}
  await page.setViewportSize({width:1000,height:800});await page.waitForTimeout(100);

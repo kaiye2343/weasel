@@ -15,7 +15,7 @@ function status(text,error=false){$("status").textContent=text;$("status-dot").s
 function mark(){dirty=true;status("尚未导出 · 更改仅在此网页内");}
 function remember(){history.push(JSON.stringify({manifest,variant,selected}));if(history.length>30)history.shift();}
 function change(fn,refresh=true){remember();fn();mark();if(refresh)render();else draw();}
-function safe(action){return async(...args)=>{if(busy)return;busy=true;$("export-project").disabled=true;$("open-project").disabled=true;try{await action(...args);}catch(e){status(e.message||String(e),true);}finally{busy=false;$("export-project").disabled=false;$("open-project").disabled=false;}};}
+function safe(action){return async(...args)=>{if(busy)return;busy=true;document.querySelector(".workspace").inert=true;$("new-project").disabled=true;$("export-project").disabled=true;$("open-project").disabled=true;try{await action(...args);}catch(e){status(e.message||String(e),true);}finally{busy=false;document.querySelector(".workspace").inert=false;$("new-project").disabled=false;$("export-project").disabled=false;$("open-project").disabled=false;}};}
 function cssColor(argb){return "#"+argb.slice(3)+argb.slice(1,3);}
 function download(bytes,name,type){const url=URL.createObjectURL(new Blob([bytes],{type})),a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}
 function clearImages(map){for(const value of map.values())if(value.url)URL.revokeObjectURL(value.url);}
@@ -39,7 +39,7 @@ function field(parent,label,value,onchange,{type="number",min=0,max=256,options=
  const el=document.createElement(options?"select":"input");el.setAttribute("aria-label",label);
  if(options){for(const [v,t] of options){const o=document.createElement("option");o.value=v;o.textContent=t;el.append(o);}el.value=String(value);}
  else{el.type=type;if(type==="checkbox")el.checked=value;else{el.value=value;if(type==="number"){el.min=min;el.max=max;el.step=step;}}}
- el.onchange=()=>{let next=el.type==="checkbox"?el.checked:el.value;if(el.type==="number"){next=Number(next);if(!Number.isInteger(next)||next<min||next>max){el.value=value;status(label+" 参数超限",true);return;}}change(()=>onchange(next));};
+ el.onchange=()=>{let next=el.type==="checkbox"?el.checked:el.value;if(el.type==="text"&&(!next.trim()||next.length>(label==="字体"?128:1024))){status(label+" 不能为空或过长",true);el.value=value;return;}if(el.type==="number"){next=Number(next);if(!Number.isInteger(next)||next<min||next>max){el.value=value;status(label+" 参数超限",true);return;}}change(()=>onchange(next));};
  l.append(el);parent.append(l);return el;
 }
 function color(parent,label,key,s){
