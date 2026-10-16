@@ -104,6 +104,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: ./get-rime.ps1 -tag 1.13.1 -use dev
+      - name: Test upstream IPC fixes with negative controls
+        shell: pwsh
+        run: ./tools/test-upstream-ipc.ps1
       - name: Verify pinned librime SDK files
         shell: pwsh
         run: |
@@ -202,5 +205,6 @@ jobs:
             .tools/native-learning/
             .tools/settings-smoke/skins/ui-smoke-error.txt
             .tools/native-baseline-*/native-*-test.log
+            .tools/upstream-ipc-*/*/*.log
           if-no-files-found: ignore
           retention-days: 7

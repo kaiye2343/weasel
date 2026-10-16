@@ -57,7 +57,12 @@ class PipeChannelBase {
  protected:
   std::wstring pname;
   // Thread-local pipe handle for isolation
-  mutable boost::thread_specific_ptr<HANDLE> hpipe_ptr;
+  static void _DeletePipeHandle(HANDLE* pipe) {
+    if (*pipe != INVALID_HANDLE_VALUE && *pipe != NULL)
+      ::CloseHandle(*pipe);
+    delete pipe;
+  }
+  mutable boost::thread_specific_ptr<HANDLE> hpipe_ptr{&_DeletePipeHandle};
   const size_t buff_size;
   // Thread-local context for buffer and state
   mutable boost::thread_specific_ptr<ChannelContext> context;
@@ -169,7 +174,7 @@ class PipeChannel : public PipeChannelBase {
       _WritePipe(pipe, data_sz, pbuff);
     } catch (...) {
       _Reconnect();
-      _WritePipe(_GetPipeHandle(), data_sz, pbuff);
+      _WritePipe(*_GetPipeHandle(), data_sz, pbuff);
     }
     ClearBufferStream();
   }
