@@ -34,7 +34,14 @@ public sealed class SkinPage : UserControl
         var right = new StackPanel(); right.Children.Add(title); right.Children.Add(info); right.Children.Add(cover); right.Children.Add(Elements.Text("皮肤变体", 16)); right.Children.Add(variants);
         var actions = new WrapPanel(); actions.Children.Add(Elements.Button("原生预览", Preview)); actions.Children.Add(Elements.Button("启用此版本", Apply, true)); actions.Children.Add(Elements.Button("导出皮肤包", Export)); right.Children.Add(actions);
         right.Children.Add(Elements.Text("选择其他已安装版本再启用，即可回退。皮肤只影响候选窗外观，不改变方案、简繁或学习数据。", 13, true));
-        right.Children.Add(Elements.Text("制作皮肤请参考包格式说明。独立网页设计器将在后续提供；此处仅管理与选择皮肤。", 13, true));
+        right.Children.Add(Elements.Button("打开离线皮肤设计器", () =>
+        {
+            string page = Path.Combine(context.Tools, "Designer", "index.html");
+            if (!File.Exists(page)) { context.Report("未找到网页设计器；请下载完整构建包中的 rime-skin-studio.zip。"); return; }
+            try { Process.Start(new ProcessStartInfo(page) { UseShellExecute = true }); }
+            catch (Exception e) when (e is IOException or System.ComponentModel.Win32Exception) { context.Report("无法打开设计器：" + e.Message); }
+        }));
+        right.Children.Add(Elements.Text("设计器在独立离线网页中编辑，导出后再导入此处。设置中心不编辑图片布局；仅支持无注音的皮肤会优先于全局注音偏好。", 13, true));
         var card = Elements.Card(right); Grid.SetColumn(card, 2); grid.Children.Add(card); Content = Elements.Scroll(grid);
         library.SelectionChanged += (_, _) => SelectEntry(); Loaded += (_, _) => Refresh();
     }

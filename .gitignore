@@ -65,3 +65,5 @@ manager/**/bin/
 manager/**/obj/
 tools/SkinFileTrace/bin/
 tools/SkinFileTrace/obj/
+
+/designer/node_modules/

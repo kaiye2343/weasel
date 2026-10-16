@@ -1,0 +1,50 @@
+"use strict";
+const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),{pathToFileURL}=require("node:url");
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE_PATH||"../designer/node_modules/playwright");
+const P=require("../designer/package.js");
+const root=path.resolve(__dirname,".."),out=path.join(root,".tools/designer-browser");fs.mkdirSync(out,{recursive:true});
+const source=path.join(root,"skins/neutral/preview.png"),png=new Uint8Array(fs.readFileSync(source));
+const m=P.newManifest();m.variants[0].layers=[{path:"ornament.png",anchor:"bottom_right",x:8,y:-80,width:100,height:100,z:1}];
+const valid=path.join(out,"valid.rimeskin");fs.writeFileSync(valid,P.packageBytes(m,new Map([["preview.png",png],["ornament.png",png]])));
+(async()=>{
+ const browser=await chromium.launch({headless:true,...(process.env.DESIGNER_BROWSER_CHANNEL?{channel:process.env.DESIGNER_BROWSER_CHANNEL}:{})});
+ let passed=0;const errors=[],requests=[];const context=await browser.newContext({viewport:{width:1440,height:960},acceptDownloads:true});const page=await context.newPage();
+ page.on("pageerror",e=>errors.push(e.message));page.on("request",r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});page.on("dialog",d=>d.accept());
+ const check=async(name,fn)=>{await fn();passed++;console.log("PASS "+name);};
+ try{
+ await page.goto(pathToFileURL(path.join(root,"designer/index.html")).href);await page.locator("#canvas").waitFor();
+ await check("file URL works offline",async()=>{assert.equal(await page.title(),"Rime · 皮肤设计器");assert.equal(errors.length,0);});
+ const annotated=await page.evaluate(()=>geometry.height);
+ await page.locator('[data-mode="plain"]').click();const plain=await page.evaluate(()=>geometry.height);
+ await check("plain preview collapses",()=>assert.ok(plain<annotated));
+ await page.locator('[data-mode="annotated"]').click();await page.locator("#sample").selectOption("mixed");
+ await check("mixed baseline stable",async()=>assert.equal(await page.evaluate(()=>new Set(geometry.cells.map(c=>c.textY)).size),1));
+ await page.locator("#sample").selectOption("empty");
+ await check("all-empty annotation collapses",async()=>assert.equal(await page.evaluate(()=>geometry.hasAnnotation),false));
+ await page.locator("#sample").selectOption("short");
+ await page.locator("#package-file").setInputFiles(valid);await page.waitForFunction(()=>document.querySelector("#status").textContent.startsWith("导入完成"));
+ await check("imports real package with image",async()=>assert.equal(await page.locator("#layers .layer").count(),1));
+ await page.locator("#layers .layer").click();const before=await page.evaluate(()=>({x:current().layers[0].x,y:current().layers[0].y}));
+ const box=await page.locator("#canvas").boundingBox(),point=await page.evaluate(()=>{const l=geometry.layers[0];return{x:(view.x+l.left+l.width/2)*view.scale,y:(view.y+l.top+l.height/2)*view.scale};});
+ await page.mouse.move(box.x+point.x,box.y+point.y);await page.mouse.down();await page.mouse.move(box.x+point.x-25,box.y+point.y+8,{steps:4});await page.mouse.up();
+ await check("drag changes image position",async()=>assert.notEqual(await page.evaluate(()=>current().layers[0].x),before.x));
+ await page.locator("#add-variant").click();await check("variants not fixed",async()=>assert.equal(await page.locator("#variants button").count(),2));
+ await page.locator('[data-tab="package"]').click();await page.getByLabel("能力",{exact:true}).selectOption("none");
+ await check("plain-only capability enforced",async()=>{assert.equal(await page.locator('[data-mode="annotated"]').isDisabled(),true);assert.equal(await page.evaluate(()=>geometry.hasAnnotation),false);});
+ const downloadEvent=page.waitForEvent("download");await page.locator("#export-project").click();const download=await downloadEvent;const exported=path.join(out,"browser-export.rimeskin");await download.saveAs(exported);
+ const result=await P.readZip(new Uint8Array(fs.readFileSync(exported)));
+ await check("browser export validates and retains layers",()=>{assert.equal(result.manifest.annotationSupport,"none");assert.equal(result.manifest.variants.length,2);assert.equal(result.manifest.variants[0].layers[0].path,"ornament.png");});
+ await page.locator("#package-file").setInputFiles(exported);await page.waitForFunction(()=>document.querySelector("#status").textContent.startsWith("导入完成"));
+ await check("browser reimports export",async()=>assert.equal(await page.locator("#variants button").count(),2));
+ const bad=path.join(out,"bad.rimeskin");fs.writeFileSync(bad,new Uint8Array(22));await page.locator("#package-file").setInputFiles(bad);
+ await page.waitForFunction(()=>document.querySelector("#status").textContent.includes("ZIP"));
+ await check("failed import retains existing document",async()=>assert.equal(await page.locator("#variants button").count(),2));
+ await page.locator("#select-frame").click();
+ const shot=process.env.DESIGNER_SCREENSHOT||path.join(out,"designer.png");await page.screenshot({path:shot,fullPage:true});
+ for(const scale of["1","1.5","2"]){await page.locator("#zoom").selectOption(scale);await check("zoom "+scale+" finite geometry",async()=>assert.equal(await page.evaluate(()=>Number.isFinite(view.scale)&&view.scale>0),true));}
+ await page.setViewportSize({width:1000,height:800});await page.waitForTimeout(100);
+ await check("narrow layout fits viewport",async()=>assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true));
+ await check("no external requests or runtime errors",()=>{assert.deepEqual(requests,[]);assert.deepEqual(errors,[]);});
+ console.log(passed+" headless browser tests passed.");
+ }finally{await context.close();await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

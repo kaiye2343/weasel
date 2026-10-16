@@ -1,0 +1,1 @@
+{"name":"rime-skin-studio","version":"1.0.0","private":true,"scripts":{"test":"node ../tests/designer_test.cjs","test:browser":"node ../tests/designer_browser_test.cjs"},"devDependencies":{"playwright":"1.62.1"}}

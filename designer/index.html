@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>Rime · 皮肤设计器</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header class="topbar"><div class="brand"><span class="logo">R</span><div><strong>Rime <span>皮肤设计器</span></strong><small>SKIN STUDIO</small></div></div><div class="local"><i></i>本地离线 · 素材不会上传</div><div class="top-actions"><button id="new-project">新建</button><button id="open-project">导入皮肤包</button><button id="export-project" class="primary">导出 .rimeskin <span>↗</span></button></div></header>
+<div class="workspace">
+<aside class="library"><div class="panel-heading"><span>工作台</span><span class="tiny">01</span></div>
+<div class="project-title"><small>当前皮肤</small><h1 id="project-name">我的皮肤</h1><span id="compatibility" class="chip">两种布局</span></div>
+<div class="section-head"><h2>变体</h2><button id="add-variant" class="icon" title="复制当前变体">＋</button></div><div id="variants"></div>
+<div class="section-head layers-heading"><h2>图层</h2><span id="layer-count" class="tiny">0 / 8</span></div><button class="layer frame-item selected" id="select-frame"><span class="layer-icon">▤</span><span><b>输入框</b><small>文字 · 背景 · 九宫格</small></span></button><div id="layers"></div>
+<button id="add-image" class="dashed">＋ 添加 PNG 图片</button>
+<div class="library-footer"><p>图片使用四角锚点跟随输入框。<br>在画布拖动，或在右侧精确设置。</p><button id="help">格式与使用说明 ↗</button></div></aside>
+<main class="editor"><div class="editor-toolbar"><div class="breadcrumbs">画布 <span>/</span> <b id="variant-title">晴空</b></div><div class="segments" id="mode-switch"><button data-mode="annotated" class="active">带注音</button><button data-mode="plain">无注音</button></div><button id="background-toggle" title="切换预览背景">◐ 背景</button></div>
+<div class="stage" id="stage"><div class="stage-caption"><span class="chip">横排候选窗</span><span>96 DPI 逻辑尺寸 · 网页近似预览</span></div><canvas id="canvas" aria-label="输入法皮肤设计预览"></canvas><div class="empty-hint" id="drag-hint">选中图片可拖动定位 · 内容区与装饰区域独立计算</div></div>
+<div class="preview-tools"><label>示例 <select id="sample"><option value="short">短候选</option><option value="long">长候选</option><option value="mixed">部分无注音</option><option value="empty">整页无注音</option></select></label><label>高亮 <select id="highlight"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label><label>缩放 <select id="zoom"><option value="1">100%</option><option value="1.5" selected>150%</option><option value="2">200%</option></select></label><span id="dimensions" class="tiny"></span></div>
+<div class="editor-notes"><div class="note-mark">i</div><p id="preview-note">预览使用模拟候选；实际字号、字体和密度可能被设置中心的全局偏好覆盖。<br>导出后先在独立原生预览中确认，不会自动修改日常输入法。</p><button id="save-preview">保存预览图</button></div></main>
+<aside class="properties"><div class="property-tabs"><button data-tab="appearance" class="active">外观</button><button data-tab="package">皮肤信息</button></div><div id="property-body"></div><footer class="property-footer"><span id="status-dot"></span><span id="status" role="status" aria-live="polite">就绪 · 尚未导出</span></footer></aside>
+</div>
+<input type="file" id="package-file" accept=".rimeskin,.zip" hidden><input type="file" id="image-file" accept="image/png,.png" hidden>
+<dialog id="help-dialog"><h2>从设计到输入法</h2><ol><li>先设置皮肤信息与支持的布局，按需添加变体。</li><li>输入框使用自适应纯色背景或九宫格 PNG；图片图层可拖动并通过锚点跟随框体。为装饰预留空白，避免遮挡候选。</li><li>切换带注音、无注音和缺少注音示例检查效果。两种布局共用可伸缩的背景、留白及图片，不需要两套固定尺寸截图。</li><li>导出 .rimeskin，在新版 Rime 设置中心导入，先用独立原生预览确认，再启用。网页不连接输入法、不读取词库。</li></ol><p>新版格式 1.1（schemaVersion 2）要求支持注音能力声明的完整组件；旧版会拒绝导入。导入旧包后可继续原格式导出，修改能力选项会升级格式。</p><p>PNG 每张最大 2048×2048；每个变体最多 8 层；压缩包 50 MiB，展开 100 MiB，活动图片解码预算 64 MiB。仅支持静态 PNG。</p><p>离线使用：解压完整网页目录并双击 index.html。所有脚本随包提供，无 CDN、账号、安装服务或常驻进程。关闭网页前请导出，未导出设计不会自动保存。</p><button id="close-help" class="primary">知道了</button></dialog>
+<script src="package.js"></script><script src="geometry.js"></script><script src="app.js"></script>
+</body></html>
