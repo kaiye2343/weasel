@@ -77,7 +77,9 @@ inline std::unique_ptr<Gdiplus::Bitmap> ScaleSkinBitmap(
     Gdiplus::Bitmap& source, int width, int height,
     Gdiplus::PixelOffsetMode offset = Gdiplus::PixelOffsetModeDefault) {
   if (width < 1 || height < 1 || width > 2048 || height > 2048) return {};
-  auto bitmap = std::make_unique<Gdiplus::Bitmap>(width, height, PixelFormat32bppPARGB);
+  std::unique_ptr<Gdiplus::Bitmap> bitmap;
+  try { bitmap = std::make_unique<Gdiplus::Bitmap>(width, height, PixelFormat32bppPARGB); }
+  catch (const std::bad_alloc&) { return {}; }
   if (bitmap->GetLastStatus() != Gdiplus::Ok) return {};
   Gdiplus::Graphics graphics(bitmap.get());
   graphics.Clear(Gdiplus::Color(0));

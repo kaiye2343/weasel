@@ -1447,9 +1447,13 @@ uint64_t WeaselPanel::_SkinResourceBytes() const {
 void WeaselPanel::_DrawSkinImages(Gdiplus::Graphics& graphics,
                                   CPoint origin,
                                   bool below) {
-  const bool cache = !GetPropW(m_hWnd, L"Weasel.DisableImageScaleCache"); // Isolated regression/benchmark control.
-  m_skin_scaled_bitmaps.resize(m_skin_bitmaps.size());
-  m_skin_scaled_sizes.resize(m_skin_bitmaps.size(), CSize(0, 0));
+  bool cache = !GetPropW(m_hWnd, L"Weasel.DisableImageScaleCache"); // Isolated regression/benchmark control.
+  if (cache) {
+    try {
+      m_skin_scaled_bitmaps.resize(m_skin_bitmaps.size());
+      m_skin_scaled_sizes.resize(m_skin_bitmaps.size(), CSize(0, 0));
+    } catch (const std::bad_alloc&) { cache = false; }
+  }
   for (size_t i = 0; i < m_skin_rects.size(); ++i) {
     if (!m_skin_bitmaps[i] || (m_skin_config[i].z < 0) != below)
       continue;
