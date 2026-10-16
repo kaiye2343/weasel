@@ -106,6 +106,7 @@ class WeaselPanel
   void _UpdateSkinGeometry();
   void _ReleaseSkinImages();
   void _DrawSkinImages(Gdiplus::Graphics& graphics, CPoint origin, bool below);
+  uint64_t _SkinResourceBytes() const;
   void _DrawAnnotationSeparators(CDCHandle dc);
   void _TraceSkinState(const char* reason);
   void _TraceSkinState(const char* reason, const std::string& detail);
@@ -113,6 +114,17 @@ class WeaselPanel
   CSize m_skin_size = CSize(0, 0);
   std::vector<SkinImage> m_skin_config;
   std::vector<std::unique_ptr<Gdiplus::Bitmap>> m_skin_bitmaps;
+  std::vector<std::unique_ptr<Gdiplus::Bitmap>> m_skin_scaled_bitmaps;
+  std::vector<CSize> m_skin_scaled_sizes;
+  std::vector<BYTE> m_skin_base_pixels;
+  UIStyle m_skin_base_style;
+  CSize m_skin_base_size = CSize(0, 0);
+  CRect m_skin_base_rect;
+  std::vector<CRect> m_skin_base_rects;
+  CSize m_skin_base_offset = CSize(0, 0);
+  size_t m_skin_base_revision = 0;
+  UINT m_skin_base_dpi = 0;
+  bool m_skin_base_background = false;
   std::vector<CRect> m_skin_rects;
   ULONGLONG m_skin_retry_after = 0;
   bool m_skin_load_failed = false;
@@ -124,6 +136,9 @@ class WeaselPanel
   // 因此只能做成成员，不能写成函数内 static
   Gdiplus::Bitmap* m_bg_image;
   std::wstring m_bg_image_path;
+  std::wstring m_skin_frame_path;
+  std::filesystem::file_time_type m_skin_frame_stamp{};
+  bool m_bg_image_stale = false;
   // 按 background_fill_mode 把底图画进 rc（内部处理 stretch/tile/center/fit）
   void _DrawBackgroundImage(Gdiplus::Graphics& g,
                             const CRect& rc,

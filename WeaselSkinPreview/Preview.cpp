@@ -42,11 +42,16 @@ static bool PerformanceTests(HWND owner) {
     std::sort(values.begin(), values.end()); return values[(values.size() - 1) * p / 100];
   };
   CClientDC dc(owner);
-  for (bool images : {false, true}) for (bool shadow : {false, true})
+  HWND panel = ui.GetCandidateWindow();
+  for (int imageMode : {0, 1, 2}) for (bool shadow : {false, true})
     for (int annotation : {1, 2}) for (int length : {4, 16, 32, 64}) {
       ui.style() = original;
       auto& style = ui.style();
-      if (!images) { style.skin_images.clear(); style.skin_frame_image.clear(); }
+      if (!imageMode) { style.skin_images.clear(); style.skin_frame_image.clear(); }
+      for (const auto* property : {L"Weasel.DisableImageScaleCache", L"Weasel.DisableStaticSkinCache"}) {
+        if (imageMode == 1) SetPropW(panel, property, reinterpret_cast<HANDLE>(1));
+        else RemovePropW(panel, property);
+      }
       if (!shadow) { style.shadow_color = style.candidate_shadow_color = style.hilited_candidate_shadow_color = 0; }
       style.annotation_position = annotation;
       context.cinfo.candies.clear(); context.cinfo.comments.clear(); context.cinfo.labels.clear();
@@ -71,10 +76,12 @@ static bool PerformanceTests(HWND owner) {
         elapsed = milliseconds(start);
         if (i >= 3) frames.push_back(elapsed);
       }
-      report << (images ? "skin" : "no-images") << ',' << length << ',' << annotation << ',' << shadow << ','
+      report << (imageMode == 2 ? "skin-cached" : imageMode == 1 ? "skin-source" : "no-images") << ',' << length << ',' << annotation << ',' << shadow << ','
              << percentile(layouts, 50) << ',' << percentile(layouts, 95) << ','
              << percentile(frames, 50) << ',' << percentile(frames, 95) << '\n';
     }
+  RemovePropW(panel, L"Weasel.DisableImageScaleCache");
+  RemovePropW(panel, L"Weasel.DisableStaticSkinCache");
   ui.style() = original; context = originalContext; ui.Update(context, status);
   return report.good(); // Timings are evidence, not a hardware-independent FPS gate.
 }
@@ -127,8 +134,32 @@ static bool RedrawTests(HWND owner) {
   bool separatorVisible = separatorHash && separatorHash != GetPropW(panel, L"Weasel.RenderHash");
   passed = passed && separatorVisible;
   report << "\nannotation separator changes pixels=" << separatorVisible;
+  // The cached base must match a fresh draw exactly, while candidate highlights
+  // still change. A style change must rebuild the base even with stable text.
+  auto originalHighlight = ui.ctx().cinfo.highlighted;
+  ui.style().back_color ^= 0x00010101;
+  ui.Refresh(); PumpPreview();
+  auto cacheGeneration = [panel]() { return reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.StaticCacheGeneration")); };
+  auto beforeCache = cacheGeneration();
+  ui.ctx().cinfo.highlighted = (originalHighlight + 1) % ui.ctx().cinfo.candies.size();
+  ui.Refresh(); PumpPreview();
+  HANDLE cachedHash = GetPropW(panel, L"Weasel.RenderHash");
+  bool reusedBase = beforeCache && beforeCache == cacheGeneration();
+  SetPropW(panel, L"Weasel.DisableStaticSkinCache", reinterpret_cast<HANDLE>(1));
+  ui.Hide(); ui.Show(); PumpPreview();
+  bool identicalBase = cachedHash && cachedHash == GetPropW(panel, L"Weasel.RenderHash");
+  RemovePropW(panel, L"Weasel.DisableStaticSkinCache");
+  ui.ctx().cinfo.highlighted = originalHighlight; ui.Refresh(); PumpPreview();
+  bool dynamicHighlight = cachedHash != GetPropW(panel, L"Weasel.RenderHash");
+  beforeCache = cacheGeneration();
+  ui.style().back_color ^= 0x00010101; ui.Refresh(); PumpPreview();
+  bool invalidatedBase = cacheGeneration() > beforeCache;
+  passed = passed && reusedBase && identicalBase && dynamicHighlight && invalidatedBase;
+  report << "\nstatic base reused=" << reusedBase << " pixels identical=" << identicalBase
+         << " dynamic highlight=" << dynamicHighlight << " style invalidates=" << invalidatedBase;
   RemovePropW(panel, L"Weasel.RenderProbe"); RemovePropW(panel, L"Weasel.RenderGeneration");
   RemovePropW(panel, L"Weasel.RenderHash");
+  RemovePropW(panel, L"Weasel.StaticCacheGeneration");
   return passed;
 }
 static bool PreferenceTests() {

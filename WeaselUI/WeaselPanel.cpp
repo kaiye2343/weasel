@@ -117,6 +117,8 @@ void WeaselPanel::_ResizeWindow() {
 
 void WeaselPanel::_ReleaseSkinImages() {
   m_skin_bitmaps.clear();
+  m_skin_scaled_bitmaps.clear(); m_skin_scaled_sizes.clear();
+  m_skin_base_pixels.clear();
   m_skin_config.clear();
   m_skin_rects.clear();
   m_skin_stamps.clear();
@@ -124,6 +126,14 @@ void WeaselPanel::_ReleaseSkinImages() {
 }
 
 void WeaselPanel::_UpdateSkinGeometry() {
+  const auto& frame = m_style.skin_frame_image.empty() ? m_style.background_image : m_style.skin_frame_image;
+  std::error_code frameError;
+  const auto frameStamp = frame.empty() ? std::filesystem::file_time_type{} :
+      std::filesystem::last_write_time(frame, frameError);
+  if (frame != m_skin_frame_path || frameStamp != m_skin_frame_stamp) {
+    m_skin_frame_path = frame; m_skin_frame_stamp = frameStamp;
+    m_bg_image_stale = true; m_skin_base_pixels.clear(); ++m_skin_revision;
+  }
   const CSize base = m_layout->GetContentSize();
   m_skin_origin = CPoint(0, 0);
   m_skin_size = base;
@@ -157,6 +167,8 @@ void WeaselPanel::_UpdateSkinGeometry() {
     }
     if (valid) {
       m_skin_config = m_style.skin_images; m_skin_bitmaps.swap(next);
+      m_skin_scaled_bitmaps.clear(); m_skin_scaled_sizes.clear();
+      m_skin_base_pixels.clear();
       m_skin_stamps = std::move(stamps); ++m_skin_revision;
       m_skin_retry_after = 0; m_skin_load_failed = false;
       _TraceSkinState("resources_ready");
@@ -662,8 +674,9 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
     // 按路径缓存原图：换宽高不重读盘，缩放在绘制时计算。
     // 图已被释放（关窗后重开）或路径变了都必须重载——
     // 只比路径会把「图没了」误判成「已经加载过」。
-    if (m_bg_image == NULL || m_bg_image_path != background) {
-      delete m_bg_image;
+    if (m_bg_image == NULL || m_bg_image_path != background || m_bg_image_stale) {
+      auto* previous = m_bg_image;
+      const auto previousPath = m_bg_image_path;
       m_bg_image = NULL;
       Gdiplus::Bitmap* src = Gdiplus::Bitmap::FromFile(background.c_str());
       if (src && src->GetLastStatus() == Gdiplus::Ok) {
@@ -695,6 +708,13 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
         m_bg_image_path.clear();
       }
       delete src;
+      if (m_bg_image) {
+        delete previous;
+        m_bg_image_stale = false;
+      } else {
+        m_bg_image = previous; m_bg_image_path = previousPath;
+        m_bg_image_stale = true;
+      }
     }
     if (m_bg_image) {
       _DrawBackgroundImage(g_back, rc, hiliteBackPath);
@@ -1232,15 +1252,28 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
       delete[] rects;
       delete[] btmys;
     }
-    // background and candidates back, hilite back drawing start
-    if ((!m_ctx.empty() && !m_style.inline_preedit) ||
-        (m_style.inline_preedit && (m_candidateCount || !m_ctx.aux.empty()))) {
-      CRect backrc = m_layout->GetContentRect();
-      _HighlightText(memDC, backrc, m_style.back_color, m_style.shadow_color,
+    // Cache only the fixed base. Candidate highlights, annotations and text stay live.
+    const bool background = (!m_ctx.empty() && !m_style.inline_preedit) ||
+        (m_style.inline_preedit && (m_candidateCount || !m_ctx.aux.empty()));
+    const CRect backrc = m_layout->GetContentRect();
+    const CSize offset(m_layout->offsetX, m_layout->offsetY);
+    const size_t baseBytes = size_t(rcw.Width()) * rcw.Height() * 4;
+    const bool cacheBase = !GetPropW(m_hWnd, L"Weasel.DisableStaticSkinCache");
+    const bool baseHit = cacheBase && m_skin_base_pixels.size() == baseBytes &&
+        m_skin_base_style == m_style && m_skin_base_size == base_size &&
+        m_skin_base_rect == backrc && m_skin_base_offset == offset &&
+        m_skin_base_dpi == dpi && m_skin_base_revision == m_skin_revision &&
+        m_skin_base_background == background && m_skin_base_rects == m_skin_rects;
+    if (baseHit) {
+      std::memcpy(pixels, m_skin_base_pixels.data(), baseBytes);
+    } else {
+      // Drop the previous size before allocating scaled images or a new base.
+      std::vector<BYTE>().swap(m_skin_base_pixels);
+      if (background)
+        _HighlightText(memDC, backrc, m_style.back_color, m_style.shadow_color,
                      DPI_SCALE(m_style.round_corner_ex), BackType::BACKGROUND,
                      IsToRoundStruct(), m_style.border_color);
-    }
-    {
+      GdiFlush();
       Gdiplus::Bitmap under(rcw.Width(), rcw.Height(), rcw.Width() * 4,
                             PixelFormat32bppPARGB, static_cast<BYTE*>(pixels));
       Gdiplus::Graphics graphics(&under);
@@ -1248,7 +1281,24 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
           Gdiplus::InterpolationModeHighQualityBicubic);
       _DrawSkinImages(graphics, CPoint(0, 0), true);
       graphics.Flush(Gdiplus::FlushIntentionSync);
+      const auto& frame = m_style.skin_frame_image.empty() ? m_style.background_image : m_style.skin_frame_image;
+      // Failed frame loads must remain retryable; do not freeze an incomplete base.
+      const bool frameReady = !background || frame.empty() || IS_FULLSCREENLAYOUT(m_style) ||
+          (m_bg_image && m_bg_image_path == frame && !m_bg_image_stale);
+      if (cacheBase && frameReady && _SkinResourceBytes() + baseBytes <= 64ULL * 1024 * 1024) {
+        try {
+          m_skin_base_pixels.assign(static_cast<BYTE*>(pixels), static_cast<BYTE*>(pixels) + baseBytes);
+          m_skin_base_style = m_style; m_skin_base_size = base_size; m_skin_base_rect = backrc;
+          m_skin_base_offset = offset; m_skin_base_dpi = dpi; m_skin_base_revision = m_skin_revision;
+          m_skin_base_background = background; m_skin_base_rects = m_skin_rects;
+          if (GetPropW(m_hWnd, L"Weasel.RenderProbe")) {
+            auto generation = reinterpret_cast<ULONG_PTR>(GetPropW(m_hWnd, L"Weasel.StaticCacheGeneration"));
+            SetPropW(m_hWnd, L"Weasel.StaticCacheGeneration", reinterpret_cast<HANDLE>(generation + 1));
+          }
+        } catch (const std::bad_alloc&) { std::vector<BYTE>().swap(m_skin_base_pixels); }
+      }
     }
+    // background and candidates back, hilite back drawing start
     if (!m_ctx.aux.str.empty()) {
       if (m_istorepos)
         auxrc.OffsetRect(0, m_offsety_aux);
@@ -1384,9 +1434,22 @@ void WeaselPanel::_DrawAnnotationSeparators(CDCHandle dc) {
   graphics.Flush(Gdiplus::FlushIntentionSync);
 }
 
+uint64_t WeaselPanel::_SkinResourceBytes() const {
+  uint64_t bytes = m_skin_base_pixels.size();
+  for (const auto& bitmap : m_skin_bitmaps)
+    if (bitmap) bytes += uint64_t(bitmap->GetWidth()) * bitmap->GetHeight() * 4;
+  for (const auto& bitmap : m_skin_scaled_bitmaps)
+    if (bitmap) bytes += uint64_t(bitmap->GetWidth()) * bitmap->GetHeight() * 4;
+  if (m_bg_image) bytes += uint64_t(m_bg_image->GetWidth()) * m_bg_image->GetHeight() * 4;
+  return bytes;
+}
+
 void WeaselPanel::_DrawSkinImages(Gdiplus::Graphics& graphics,
                                   CPoint origin,
                                   bool below) {
+  const bool cache = !GetPropW(m_hWnd, L"Weasel.DisableImageScaleCache"); // Isolated regression/benchmark control.
+  m_skin_scaled_bitmaps.resize(m_skin_bitmaps.size());
+  m_skin_scaled_sizes.resize(m_skin_bitmaps.size(), CSize(0, 0));
   for (size_t i = 0; i < m_skin_rects.size(); ++i) {
     if (!m_skin_bitmaps[i] || (m_skin_config[i].z < 0) != below)
       continue;
@@ -1397,9 +1460,21 @@ void WeaselPanel::_DrawSkinImages(Gdiplus::Graphics& graphics,
                                    (float)target.Height() / image->GetHeight());
     const int width = (int)(image->GetWidth() * scale);
     const int height = (int)(image->GetHeight() * scale);
-    graphics.DrawImage(m_skin_bitmaps[i].get(),
-                       target.left + (target.Width() - width) / 2,
-                       target.bottom - height, width, height);
+    if (cache && m_skin_scaled_sizes[i] != CSize(width, height)) {
+      m_skin_scaled_bitmaps[i].reset();
+      m_skin_scaled_sizes[i] = CSize(width, height);
+      // Original pixels plus optional scaled copies stay inside the existing
+      // decoded-resource budget. Oversized/failed copies use the valid original.
+      const uint64_t bytes = _SkinResourceBytes();
+      if (width > 0 && height > 0 && bytes + uint64_t(width) * height * 4 <= 64ULL * 1024 * 1024)
+        m_skin_scaled_bitmaps[i] = ScaleSkinBitmap(*image, width, height);
+    }
+    const bool scaled = cache && m_skin_scaled_bitmaps[i];
+    const auto interpolation = graphics.GetInterpolationMode();
+    if (scaled) graphics.SetInterpolationMode(Gdiplus::InterpolationModeNearestNeighbor);
+    graphics.DrawImage(scaled ? m_skin_scaled_bitmaps[i].get() : image,
+        target.left + (target.Width() - width) / 2, target.bottom - height, width, height);
+    if (scaled) graphics.SetInterpolationMode(interpolation);
   }
 }
 

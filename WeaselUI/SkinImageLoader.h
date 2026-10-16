@@ -72,4 +72,18 @@ inline std::unique_ptr<Gdiplus::Bitmap> LoadSkinBitmap(
   }
   return bitmap;
 }
+// Rasterize decorations once per fitted size/DPI, then composite them 1:1.
+inline std::unique_ptr<Gdiplus::Bitmap> ScaleSkinBitmap(
+    Gdiplus::Bitmap& source, int width, int height) {
+  if (width < 1 || height < 1 || width > 2048 || height > 2048) return {};
+  auto bitmap = std::make_unique<Gdiplus::Bitmap>(width, height, PixelFormat32bppPARGB);
+  if (bitmap->GetLastStatus() != Gdiplus::Ok) return {};
+  Gdiplus::Graphics graphics(bitmap.get());
+  graphics.Clear(Gdiplus::Color(0));
+  graphics.SetCompositingMode(Gdiplus::CompositingModeSourceCopy);
+  graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+  if (graphics.DrawImage(&source, 0, 0, width, height) != Gdiplus::Ok) return {};
+  graphics.Flush(Gdiplus::FlushIntentionSync);
+  return bitmap;
+}
 } // namespace weasel
