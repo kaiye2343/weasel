@@ -74,7 +74,8 @@ inline std::unique_ptr<Gdiplus::Bitmap> LoadSkinBitmap(
 }
 // Rasterize decorations once per fitted size/DPI, then composite them 1:1.
 inline std::unique_ptr<Gdiplus::Bitmap> ScaleSkinBitmap(
-    Gdiplus::Bitmap& source, int width, int height) {
+    Gdiplus::Bitmap& source, int width, int height,
+    Gdiplus::PixelOffsetMode offset = Gdiplus::PixelOffsetModeDefault) {
   if (width < 1 || height < 1 || width > 2048 || height > 2048) return {};
   auto bitmap = std::make_unique<Gdiplus::Bitmap>(width, height, PixelFormat32bppPARGB);
   if (bitmap->GetLastStatus() != Gdiplus::Ok) return {};
@@ -82,6 +83,7 @@ inline std::unique_ptr<Gdiplus::Bitmap> ScaleSkinBitmap(
   graphics.Clear(Gdiplus::Color(0));
   graphics.SetCompositingMode(Gdiplus::CompositingModeSourceCopy);
   graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+  graphics.SetPixelOffsetMode(offset);
   if (graphics.DrawImage(&source, 0, 0, width, height) != Gdiplus::Ok) return {};
   graphics.Flush(Gdiplus::FlushIntentionSync);
   return bitmap;

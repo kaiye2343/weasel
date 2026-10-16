@@ -33,7 +33,7 @@ static bool PerformanceTests(HWND owner) {
   auto original = ui.style();
   auto originalContext = context;
   std::ofstream report("native-performance-test.csv");
-  report << "mode,characters,annotation,shadow,layout_p50_ms,layout_p95_ms,frame_p50_ms,frame_p95_ms\n";
+  report << "mode,workload,characters,annotation,shadow,layout_p50_ms,layout_p95_ms,frame_p50_ms,frame_p95_ms\n";
   using Clock = std::chrono::steady_clock;
   auto milliseconds = [](Clock::time_point start) {
     return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
@@ -43,7 +43,7 @@ static bool PerformanceTests(HWND owner) {
   };
   CClientDC dc(owner);
   HWND panel = ui.GetCandidateWindow();
-  for (int imageMode : {0, 1, 2}) for (bool shadow : {false, true})
+  for (int imageMode : {0, 1, 2}) for (bool resizing : {false, true}) for (bool shadow : {false, true})
     for (int annotation : {1, 2}) for (int length : {4, 16, 32, 64}) {
       ui.style() = original;
       auto& style = ui.style();
@@ -66,6 +66,7 @@ static bool PerformanceTests(HWND owner) {
       auto resources = std::make_shared<weasel::DirectWriteResources>(style, 144);
       std::vector<double> layouts, frames;
       for (int i = 0; i < 15; ++i) {
+        if (resizing) context.cinfo.candies[0].str.assign(length + i % 2, L'岸');
         auto start = Clock::now();
         weasel::HorizontalLayout layout(style, context, status, resources);
         layout.DoLayout(CDCHandle(dc.m_hDC), resources);
@@ -76,7 +77,7 @@ static bool PerformanceTests(HWND owner) {
         elapsed = milliseconds(start);
         if (i >= 3) frames.push_back(elapsed);
       }
-      report << (imageMode == 2 ? "skin-cached" : imageMode == 1 ? "skin-source" : "no-images") << ',' << length << ',' << annotation << ',' << shadow << ','
+      report << (imageMode == 2 ? "skin-cached" : imageMode == 1 ? "skin-source" : "no-images") << ',' << (resizing ? "resizing" : "steady") << ',' << length << ',' << annotation << ',' << shadow << ','
              << percentile(layouts, 50) << ',' << percentile(layouts, 95) << ','
              << percentile(frames, 50) << ',' << percentile(frames, 95) << '\n';
     }

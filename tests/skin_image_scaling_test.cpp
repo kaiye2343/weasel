@@ -3,8 +3,8 @@
 #include <algorithm>
 #pragma comment(lib, "gdiplus.lib")
 
-static bool Compare(Gdiplus::Bitmap& source, int width, int height, UINT background) {
-  auto cached = weasel::ScaleSkinBitmap(source, width, height);
+static bool Compare(Gdiplus::Bitmap& source, int width, int height, UINT background, Gdiplus::PixelOffsetMode offset) {
+  auto cached = weasel::ScaleSkinBitmap(source, width, height, offset);
   if (!cached || cached->GetWidth() != UINT(width) || cached->GetHeight() != UINT(height)) return false;
   Gdiplus::Bitmap direct(width + 16, height + 16, PixelFormat32bppPARGB);
   Gdiplus::Bitmap scaled(width + 16, height + 16, PixelFormat32bppPARGB);
@@ -12,7 +12,9 @@ static bool Compare(Gdiplus::Bitmap& source, int width, int height, UINT backgro
     Gdiplus::Graphics a(&direct), b(&scaled);
     a.Clear(Gdiplus::Color(background)); b.Clear(Gdiplus::Color(background));
     a.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+    a.SetPixelOffsetMode(offset);
     b.SetInterpolationMode(Gdiplus::InterpolationModeNearestNeighbor);
+    b.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
     if (a.DrawImage(&source, 8, 8, width, height) != Gdiplus::Ok ||
         b.DrawImage(cached.get(), 8, 8, width, height) != Gdiplus::Ok) return false;
   }
@@ -27,7 +29,7 @@ static bool Compare(Gdiplus::Bitmap& source, int width, int height, UINT backgro
     largest = (std::max)(largest, delta < 0 ? -delta : delta);
   }
   scaled.UnlockBits(&b); direct.UnlockBits(&a);
-  std::cout << "size=" << width << ',' << height << " background=" << background << " max_channel_delta=" << largest << '\n';
+  std::cout << "size=" << width << ',' << height << " background=" << background << " offset=" << offset << " max_channel_delta=" << largest << '\n';
   return largest <= 2; // An intermediate 8-bit PARGB raster may round channels.
 }
 int wmain(int argc, wchar_t** argv) {
@@ -38,8 +40,9 @@ int wmain(int argc, wchar_t** argv) {
   {
     weasel::SkinImageLoadError error; auto source = weasel::LoadSkinBitmap(argv[1], error);
     if (!source) return 2;
-    for (int size : {96, 144, 192}) for (UINT color : {0u, 0xffffffffu, 0xff1c2130u})
-      passed = Compare(*source, size, size + 32, color) && passed;
+    for (auto offset : {Gdiplus::PixelOffsetModeDefault, Gdiplus::PixelOffsetModeHighQuality})
+      for (int size : {96, 144, 192}) for (UINT color : {0u, 0xffffffffu, 0xff1c2130u})
+        passed = Compare(*source, size, size + 32, color, offset) && passed;
     passed = !weasel::ScaleSkinBitmap(*source, 0, 10) && !weasel::ScaleSkinBitmap(*source, 2049, 10) && passed;
   }
   Gdiplus::GdiplusShutdown(token);
