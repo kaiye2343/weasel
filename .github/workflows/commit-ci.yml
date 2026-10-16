@@ -27,6 +27,24 @@ jobs:
           submodules: recursive
           fetch-depth: 0
       - uses: microsoft/setup-msbuild@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: designer/package-lock.json
+      - name: Test offline skin designer
+        shell: pwsh
+        run: |
+          npm ci --prefix designer --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'Designer test dependency setup failed' }
+          node tests/designer_test.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Designer package/geometry tests failed' }
+          Push-Location designer
+          npx playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Headless Chromium setup failed' }
+          Pop-Location
+          node tests/designer_browser_test.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Offline browser regression failed' }
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -87,6 +105,13 @@ jobs:
           cl /nologo /EHsc /std:c++17 /W4 tests\skin_image_scaling_test.cpp /Fe:.tools\skin_image_scaling_test.exe /Fo:.tools\skin_image_scaling_test.obj
           if errorlevel 1 exit /b 1
           .tools\skin_image_scaling_test.exe skins\shorekeeper\shorekeeper-watermelon.png
+          if errorlevel 1 exit /b 1
+      - name: Compare cached GDI and upstream WARP technique without UI
+        shell: cmd
+        run: |
+          cl /nologo /EHsc /std:c++17 /W4 tests\render_backend_benchmark.cpp /Fe:.tools\render_backend_benchmark.exe /Fo:.tools\render_backend_benchmark.obj
+          if errorlevel 1 exit /b 1
+          .tools\render_backend_benchmark.exe skins\shorekeeper\shorekeeper-watermelon.png
           if errorlevel 1 exit /b 1
       - uses: actions/cache@v4
         id: boost
@@ -168,6 +193,10 @@ jobs:
             if (!(Test-Path "output/$file")) { throw "Missing tool dependency: $file" }
             Copy-Item "output/$file" output/archives/tools/
           }
+          node tools/pack-designer.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Offline designer packaging failed' }
+          Copy-Item render-backend-benchmark.csv output/archives/
+          Copy-Item .tools/designer-browser/designer.png output/archives/designer-browser.png
           $env:WEASEL_SETTINGS_CENTER_DEFINE = '/DRIME_SETTINGS_CENTER_PACKAGE=1'
           cmd /c build.bat installer
           if ($LASTEXITCODE -ne 0) { throw 'Complete settings center installer failed' }
@@ -175,6 +204,12 @@ jobs:
           if ($installers.Count -eq 0) { throw 'Build produced no installer' }
           ./tools/pack-skin.ps1
           ./tools/pack-skin.ps1 -Source skins/neutral -Destination output/archives/neutral-1.0.0.rimeskin
+          foreach ($folder in @('studio-demo', 'studio-plain')) {
+            foreach ($variant in @('light', 'night')) {
+              $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--manifest', "$env:GITHUB_WORKSPACE/skins/$folder/manifest.json", '--variant', $variant, '--smoke', 'true') -WindowStyle Hidden -PassThru -Wait
+              if ($test.ExitCode -ne 0) { throw "Designer sample native preview failed: $folder $variant" }
+            }
+          }
           Copy-Item docs/SETTINGS-CENTER.md output/archives/SETTINGS-CENTER.md
           Copy-Item docs/SHOREKEEPER.md output/archives/SHOREKEEPER.md
           Copy-Item docs/skin-format.md output/archives/skin-format.md
@@ -202,6 +237,8 @@ jobs:
             native-layout-test.log
             native-redraw-test.log
             native-performance-test.csv
+            render-backend-benchmark.csv
+            .tools/designer-browser/
             .tools/native-learning/
             .tools/settings-smoke/skins/ui-smoke-error.txt
             .tools/native-baseline-*/native-*-test.log
