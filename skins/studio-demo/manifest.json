@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 2,
+  "id": "studio-demo",
+  "name": "极光 · 自适应示例",
+  "author": "Rime Skin Studio",
+  "version": "1.0.0",
+  "minEngineVersion": "1.1",
+  "annotationSupport": "both",
+  "preview": "preview.png",
+  "variants": [
+    {
+      "id": "light",
+      "name": "晴空",
+      "style": {
+        "fontFace": "Microsoft YaHei UI",
+        "fontPoint": 12,
+        "commentFontPoint": 10,
+        "annotationPosition": "above",
+        "paddingLeft": 8,
+        "paddingRight": 84,
+        "paddingTop": 4,
+        "paddingBottom": 4,
+        "candidateSpacing": 8,
+        "cornerRadius": 8,
+        "borderWidth": 1,
+        "borderStyle": "solid",
+        "shadowRadius": 6,
+        "backgroundColor": "#FFF8FBFF",
+        "textColor": "#FF2B4055",
+        "commentColor": "#FF7890A6",
+        "highlightColor": "#FFDFEDF8",
+        "highlightTextColor": "#FF236EAE",
+        "borderColor": "#FFC9DDEB",
+        "frame": {
+          "path": "frame.png",
+          "slice": [
+            8,
+            8,
+            8,
+            8
+          ]
+        }
+      },
+      "layers": [
+        {
+          "path": "orbit.png",
+          "anchor": "bottom_right",
+          "x": -90,
+          "y": -86,
+          "width": 90,
+          "height": 90,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "id": "night",
+      "name": "夜航",
+      "style": {
+        "fontFace": "Microsoft YaHei UI",
+        "fontPoint": 12,
+        "commentFontPoint": 10,
+        "annotationPosition": "above",
+        "paddingLeft": 8,
+        "paddingRight": 84,
+        "paddingTop": 4,
+        "paddingBottom": 4,
+        "candidateSpacing": 8,
+        "cornerRadius": 8,
+        "borderWidth": 1,
+        "borderStyle": "solid",
+        "shadowRadius": 6,
+        "backgroundColor": "#FF233546",
+        "textColor": "#FFE5F0FA",
+        "commentColor": "#FFA5C3DA",
+        "highlightColor": "#FF365771",
+        "highlightTextColor": "#FFE5F4FF",
+        "borderColor": "#FFC9DDEB",
+        "frame": null
+      },
+      "layers": [
+        {
+          "path": "orbit.png",
+          "anchor": "bottom_right",
+          "x": -90,
+          "y": -86,
+          "width": 90,
+          "height": 90,
+          "z": 1
+        }
+      ]
+    }
+  ]
+}

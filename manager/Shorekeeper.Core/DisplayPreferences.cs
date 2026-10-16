@@ -56,6 +56,7 @@ public sealed class DisplayPreferencesStore(string root)
         var preference = Read();
         if (!preference.AnnotationEnabled) result.AnnotationPosition = "hidden";
         else if (preference.AnnotationPosition != "skin") result.AnnotationPosition = preference.AnnotationPosition;
+        if (skin.Manifest.AnnotationSupport == "none") result.AnnotationPosition = "hidden";
         if (preference.FontMode == "user") { result.FontPoint = preference.FontPoint; result.CommentFontPoint = preference.CommentFontPoint; }
         if (preference.Density != "skin") result.CandidateSpacing = preference.Density == "compact" ? 8 : 12;
         return result;

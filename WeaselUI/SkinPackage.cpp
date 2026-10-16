@@ -117,12 +117,16 @@ bool LoadSkinManifest(const std::filesystem::path& manifest,
                       const std::filesystem::path& overrides) {
   try {
     auto data = ReadObject(manifest);
-    if (data.at("schemaVersion").as_int64() != 1 || String(data, "minEngineVersion") != "1.0")
-      throw std::runtime_error("Unsupported skin version");
+    const auto version = data.at("schemaVersion").as_int64();
+    const bool v1 = version == 1 && String(data, "minEngineVersion") == "1.0" && !data.if_contains("annotationSupport");
+    const auto support = data.if_contains("annotationSupport") ? String(data, "annotationSupport") : "both";
+    const bool v2 = version == 2 && String(data, "minEngineVersion") == "1.1" && (support == "none" || support == "both") && data.if_contains("annotationSupport");
+    if (!v1 && !v2) throw std::runtime_error("Unsupported skin version or annotation capability");
     for (auto& item : data.at("variants").as_array()) {
       const auto& v = item.as_object();
       if (String(v, "id") != variant) continue;
       UIStyle next = style;
+      next.skin_supports_annotation = support != "none";
       auto root = std::filesystem::absolute(manifest).parent_path();
       ApplyStyle(v.at("style").as_object(), root, next);
       if (!overrides.empty()) ApplyStyle(ReadObject(overrides), root, next);
@@ -142,6 +146,7 @@ bool LoadSkinManifest(const std::filesystem::path& manifest,
       }
       if (bytes > 64LL * 1024 * 1024) throw std::runtime_error("Decoded skin exceeds 64MiB");
       std::stable_sort(next.skin_images.begin(), next.skin_images.end(), [](const auto& a, const auto& b) { return a.z < b.z; });
+      if (!next.skin_supports_annotation) next.annotation_position = 2;
       style = std::move(next); error.clear(); return true;
     }
     throw std::runtime_error("Skin variant missing");
@@ -154,10 +159,10 @@ bool LoadActiveSkin(UIStyle& style, std::string& error) {
       std::string reason;
       if (!LoadDisplayPreferences(root / L"display.json", target, reason)) throw std::runtime_error(reason);
     };
-    if (!std::filesystem::exists(statePath)) { UIStyle next = style; applyDisplay(next); style = std::move(next); error.clear(); return true; }
+    if (!std::filesystem::exists(statePath)) { UIStyle next = style; next.skin_supports_annotation = true; applyDisplay(next); style = std::move(next); error.clear(); return true; }
     auto state = ReadObject(statePath);
     if (state.at("schemaVersion").as_int64() != 1) throw std::runtime_error("Unsupported selection version");
-    if (!state.if_contains("skinId") || state.at("skinId").is_null()) { UIStyle next = style; applyDisplay(next); style = std::move(next); error.clear(); return true; }
+    if (!state.if_contains("skinId") || state.at("skinId").is_null()) { UIStyle next = style; next.skin_supports_annotation = true; applyDisplay(next); style = std::move(next); error.clear(); return true; }
     auto id = String(state, "skinId"), version = String(state, "skinVersion");
     if (!std::regex_match(id, std::regex("[a-z0-9][a-z0-9._-]{0,63}")) || id.find("..") != std::string::npos ||
         !std::regex_match(version, std::regex("[0-9]+\\.[0-9]+\\.[0-9]+"))) throw std::runtime_error("Invalid skin identity");
@@ -204,6 +209,7 @@ bool LoadDisplayPreferences(const std::filesystem::path& path, UIStyle& style,
         next.annotation_gap = density == "compact" ? 2 : 3;
       }
     }
+    if (!next.skin_supports_annotation) next.annotation_position = 2;
     style = std::move(next); error.clear(); return true;
   } catch (const std::exception& ex) { error = ex.what(); return false; }
 }

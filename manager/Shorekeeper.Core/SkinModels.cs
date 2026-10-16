@@ -21,6 +21,9 @@ public sealed class SkinManifest
     public string Preview { get; set; } = "";
     [JsonRequired]
     public List<SkinVariant> Variants { get; set; } = [];
+    // v2 capability; absent in v1 packages.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AnnotationSupport { get; set; }
 }
 public sealed class SkinVariant
 {

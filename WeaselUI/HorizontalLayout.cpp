@@ -82,7 +82,7 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
   if (count) {
     CSize labelSizes[MAX_CANDIDATES_COUNT], textSizes[MAX_CANDIDATES_COUNT], commentSizes[MAX_CANDIDATES_COUNT];
     int blockWidths[MAX_CANDIDATES_COUNT] = {0};
-    const bool above = _style.annotation_position == 1;
+    const bool above = _style.skin_supports_annotation && _style.annotation_position == 1;
     for (int i = 0; i < count; ++i) {
       auto label = GetLabelText(labels, i, _style.label_text_format.c_str());
       GetTextSizeDW(label, label.length(), pDWR->pLabelTextFormat, pDWR, &labelSizes[i]);
@@ -92,7 +92,7 @@ void HorizontalLayout::DoLayout(CDCHandle dc, PDWR pDWR) {
       textSizes[i].cx *= textFontValid; textSizes[i].cy *= textFontValid;
       commentSizes[i] = CSize(0, 0);
       bool visible = cmtFontValid && ((i == id ? _style.hilited_comment_text_color : _style.comment_text_color) & 0xff000000);
-      if (_style.annotation_position != 2 && i < (int)comments.size() && !comments[i].empty() && visible)
+      if (_style.skin_supports_annotation && _style.annotation_position != 2 && i < (int)comments.size() && !comments[i].empty() && visible)
         GetTextSizeDW(comments[i].str, comments[i].str.length(), pDWR->pCommentTextFormat, pDWR, &commentSizes[i]);
       int textWidth = labelSizes[i].cx + _style.hilite_spacing + textSizes[i].cx;
       blockWidths[i] = above ? max(textWidth, commentSizes[i].cx) : textWidth + (commentSizes[i].cx ? _style.hilite_spacing + commentSizes[i].cx : 0);

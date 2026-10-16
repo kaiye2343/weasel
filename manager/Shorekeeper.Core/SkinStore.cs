@@ -67,9 +67,9 @@ public sealed class SkinStore
         string manifestPath = Path.Combine(root, "manifest.json");
         if (new FileInfo(manifestPath).Length > 1024 * 1024) throw new InvalidDataException("清单过大。");
         var m = SkinJson.Read<SkinManifest>(manifestPath);
-        if (m.SchemaVersion != 1 || !IsId(m.Id) || !IsVersion(m.Version) || string.IsNullOrWhiteSpace(m.Name) ||
+        if (m.SchemaVersion is not (1 or 2) || !IsId(m.Id) || !IsVersion(m.Version) || string.IsNullOrWhiteSpace(m.Name) ||
             string.IsNullOrWhiteSpace(m.Author) || m.Variants.Count is < 1 or > 32 ||
-            m.MinEngineVersion != "1.0")
+            (m.SchemaVersion == 1 ? m.MinEngineVersion != "1.0" || m.AnnotationSupport != null : m.MinEngineVersion != "1.1" || m.AnnotationSupport is not ("none" or "both")))
             throw new InvalidDataException("皮肤标识、版本或兼容版本无效。");
         InspectPng(ResolveAsset(root, m.Preview));
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

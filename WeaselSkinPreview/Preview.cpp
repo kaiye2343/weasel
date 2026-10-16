@@ -197,6 +197,14 @@ static bool PreferenceTests() {
     before = style;
     write(root / L"display.json", R"({"schemaVersion":2,"fontPoint":0})");
     if (weasel::LoadActiveSkin(style, error) || style != before) throw std::runtime_error("Invalid V2 preference modified style");
+    write(skin / L"manifest.json", R"({"schemaVersion":2,"minEngineVersion":"1.1","annotationSupport":"none","variants":[{"id":"plain","style":{"annotationPosition":"above"},"layers":[]}]})");
+    write(root / L"display.json", R"({"schemaVersion":2,"annotationEnabled":true,"annotationPosition":"above"})");
+    if (!weasel::LoadActiveSkin(style, error) || style.skin_supports_annotation || style.annotation_position != 2) throw std::runtime_error("Plain-only capability overridden");
+    write(skin / L"manifest.json", R"({"schemaVersion":2,"minEngineVersion":"1.1","annotationSupport":"both","variants":[{"id":"plain","style":{},"layers":[]}]})");
+    if (!weasel::LoadActiveSkin(style, error) || !style.skin_supports_annotation || style.annotation_position != 1) throw std::runtime_error("Both-layout capability failed");
+    before = style;
+    write(skin / L"manifest.json", R"({"schemaVersion":2,"minEngineVersion":"1.1","variants":[{"id":"plain","style":{},"layers":[]}]})");
+    if (weasel::LoadActiveSkin(style, error) || style != before) throw std::runtime_error("Missing capability committed incomplete style");
     passed = true;
     report << "PASS no-skin, pure-color, legacy override, follow-skin, V2 fonts/density/visibility and failure rollback";
   } catch (const std::exception& error) { report << error.what(); passed = false; }
@@ -247,6 +255,14 @@ static bool LayoutTests(HWND window) {
     if (fallback.GetPreeditRect().IsRectEmpty() || !inlineLayout.GetPreeditRect().IsRectEmpty() ||
         inlineLayout.GetCandidateCommentRect(0).IsRectEmpty() || inlineLayout.GetContentSize().cy >= fallback.GetContentSize().cy) return false;
     report << "PASS inline composition removes duplicate code row and preserves annotations; legacy fallback retained\n";
+  }
+  {
+    auto style = ui.style(); style.annotation_position = 1; style.skin_supports_annotation = false; style.annotation_collapse_empty = false;
+    auto resources = std::make_shared<weasel::DirectWriteResources>(style, 144);
+    weasel::HorizontalLayout plainOnly(style, sample, state, resources); plainOnly.DoLayout(CDCHandle(dc.m_hDC), resources);
+    for (int i = 0; i < 3; ++i) if (!plainOnly.GetCandidateCommentRect(i).IsRectEmpty()) return false;
+    if (!plainOnly.annotation_separators.empty()) return false;
+    report << "PASS unsupported annotations remain hidden even in reserve mode\n";
   }
   for (auto& comment : sample.cinfo.comments) comment.clear();
   auto style = ui.style(); style.annotation_position = 1; style.annotation_collapse_empty = true;

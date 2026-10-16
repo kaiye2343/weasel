@@ -1,11 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "RimeSkin 1.0",
+  "title": "RimeSkin 1.0 / 1.1",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "schemaVersion": {
-      "const": 1
+      "enum": [
+        1,
+        2
+      ]
     },
     "id": {
       "type": "string",
@@ -24,7 +27,10 @@
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
     "minEngineVersion": {
-      "const": "1.0"
+      "enum": [
+        "1.0",
+        "1.1"
+      ]
     },
     "preview": {
       "type": "string",
@@ -277,6 +283,12 @@
           "layers"
         ]
       }
+    },
+    "annotationSupport": {
+      "enum": [
+        "none",
+        "both"
+      ]
     }
   },
   "required": [
@@ -288,5 +300,38 @@
     "minEngineVersion",
     "preview",
     "variants"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "minEngineVersion": {
+            "const": "1.0"
+          }
+        },
+        "not": {
+          "required": [
+            "annotationSupport"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "annotationSupport"
+        ],
+        "properties": {
+          "minEngineVersion": {
+            "const": "1.1"
+          }
+        }
+      }
+    }
   ]
 }

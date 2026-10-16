@@ -1173,7 +1173,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
       }
       // Draw comment
       std::wstring comment = comments.at(i).str;
-      if (m_style.annotation_position != 2 && !comment.empty() && COLORNOTTRANSPARENT(comment_text_color)) {
+      if (m_style.skin_supports_annotation && m_style.annotation_position != 2 && !comment.empty() && COLORNOTTRANSPARENT(comment_text_color)) {
         rect = m_layout->GetCandidateCommentRect((int)i);
         if (m_istorepos)
           rect.OffsetRect(0, m_offsetys[i]);

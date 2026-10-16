@@ -242,6 +242,7 @@ struct UIStyle {
   std::vector<SkinImage> skin_images;
   int skin_border_style = 1, skin_border_inset = 0;
   int annotation_position = 0;
+  bool skin_supports_annotation = true;
   bool annotation_collapse_empty = true;
   int annotation_gap = 2;
   bool annotation_separator_enabled = true;
@@ -412,6 +413,7 @@ struct UIStyle {
         skin_border_style != st.skin_border_style ||
         skin_border_inset != st.skin_border_inset ||
         annotation_position != st.annotation_position ||
+        skin_supports_annotation != st.skin_supports_annotation ||
         annotation_collapse_empty != st.annotation_collapse_empty ||
         annotation_gap != st.annotation_gap ||
         annotation_separator_enabled != st.annotation_separator_enabled ||
@@ -485,6 +487,7 @@ void serialize(Archive& ar, weasel::UIStyle& s, const unsigned int version) {
   ar & s.background_fill_mode;
   ar & s.skin_images;
   ar & s.skin_border_style & s.skin_border_inset & s.annotation_position;
+  ar & s.skin_supports_annotation;
   ar & s.annotation_collapse_empty & s.annotation_gap;
   ar & s.annotation_separator_enabled & s.annotation_separator_color;
   ar & s.annotation_separator_thickness & s.annotation_separator_fade;

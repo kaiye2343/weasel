@@ -133,6 +133,27 @@ try
     Check(profiles.Load("work").AnnotationLength == 64 && File.ReadAllText(dailyCustom) == dailyAnnotationBefore, "long annotation patch preserves other scenario");
     annotated.AnnotationLength = 65;
     Reject(() => profiles.PreviewScheme("wanxiang_work", annotated), "annotation length range validation");
+    var plainOnly = store.Import(Package("plain-only", edit: m => { m.Id = "plain-only"; m.SchemaVersion = 2; m.MinEngineVersion = "1.1"; m.AnnotationSupport = "none"; }));
+    preferences.Save(new() { AnnotationPosition = "above" });
+    Check(preferences.EffectiveStyle(store, plainOnly, plainOnly.Manifest.Variants[0]).AnnotationPosition == "hidden", "plain-only package overrides global annotation preference");
+    var bothLayouts = store.Import(Package("both-layouts", edit: m => { m.Id = "both-layouts"; m.SchemaVersion = 2; m.MinEngineVersion = "1.1"; m.AnnotationSupport = "both"; }));
+    Check(preferences.EffectiveStyle(store, bothLayouts, bothLayouts.Manifest.Variants[0]).AnnotationPosition == "above", "both-layout package follows display preference");
+    Reject(() => store.Import(Package("missing-capability", edit: m => { m.SchemaVersion = 2; m.MinEngineVersion = "1.1"; })), "v2 requires annotation capability");
+    Reject(() => store.Import(Package("wrong-capability", edit: m => { m.SchemaVersion = 2; m.MinEngineVersion = "1.1"; m.AnnotationSupport = "guess"; })), "reject unknown annotation capability");
+    Reject(() => store.Import(Package("v1-capability", edit: m => m.AnnotationSupport = "none")), "v1 does not silently ignore capability");
+    string plainExport = Path.Combine(temp, "plain-export.rimeskin"); store.Export(plainOnly, plainExport);
+    Check(new SkinStore(Path.Combine(temp, "plain-reimport")).Import(plainExport).Manifest.AnnotationSupport == "none", "capability survives export and reimport");
+    foreach (string folder in new[] { "studio-demo", "studio-plain" })
+    {
+        var sampleManifest = SkinStore.ValidateDirectory(Path.Combine(project, "skins", folder));
+        Check(sampleManifest.SchemaVersion == 2, "native PNG validation of designer sample " + folder);
+    }
+    string browserExport = Path.Combine(project, ".tools", "designer-browser", "browser-export.rimeskin");
+    if (File.Exists(browserExport))
+    {
+        var webSkin = new SkinStore(Path.Combine(temp, "browser-export")).Import(browserExport);
+        Check(webSkin.Manifest.AnnotationSupport == "none" && webSkin.Manifest.Variants.Count == 2, "real browser export imports with production validator");
+    }
     await DisplayTests.Run(temp, Check, Reject);
     Console.WriteLine($"{passed} tests passed.");
 }
