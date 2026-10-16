@@ -15,6 +15,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <vector>
 #include "../WeaselUI/SkinImageLoader.h"
 #pragma comment(lib, "d3d11.lib")
@@ -99,7 +100,7 @@ void Run(const wchar_t* image) {
       const int bw=w+extra;std::vector<BYTE> pixels(size_t(bw)*h*4);
       Gdiplus::Bitmap bitmap(bw,h,bw*4,PixelFormat32bppPARGB,pixels.data());
       {Gdiplus::Graphics graphics(&bitmap);Gdiplus::SolidBrush background(Gdiplus::Color(255,245,250,255));
-       GD(graphics.FillRectangle(&background,0,h-bodyHeight,bw-deco,bodyHeight));GD(graphics.Flush(Gdiplus::FlushIntentionSync));}
+       GD(graphics.FillRectangle(&background,0,h-bodyHeight,bw-deco,bodyHeight));graphics.Flush(Gdiplus::FlushIntentionSync);GD(graphics.GetLastStatus());}
       bases.push_back(std::move(pixels));
     }
     std::vector<ComPtr<ID2D1Bitmap1>> uploaded;
@@ -125,7 +126,7 @@ void Run(const wchar_t* image) {
           {Gdiplus::Graphics graphics(&bitmap);Gdiplus::SolidBrush highlight(Gdiplus::Color(255,51,128,204));
            GD(graphics.FillRectangle(&highlight,hx,hy,hw,hh));
            graphics.SetInterpolationMode(Gdiplus::InterpolationModeNearestNeighbor);graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
-           GD(graphics.DrawImage(decal.get(),bw-deco,0,deco,deco));GD(graphics.Flush(Gdiplus::FlushIntentionSync));}
+           GD(graphics.DrawImage(decal.get(),bw-deco,0,deco,deco));graphics.Flush(Gdiplus::FlushIntentionSync);GD(graphics.GetLastStatus());}
           const double elapsed=Ms(start);if(i>=5){submit.push_back(elapsed);complete.push_back(elapsed);}
         }
       }
