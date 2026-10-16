@@ -11,6 +11,9 @@
 #pragma comment(lib, "Shcore.lib")
 #include <fstream>
 #include <stdexcept>
+#include <chrono>
+#include <algorithm>
+#include <vector>
 
 CAppModule _Module;
 static weasel::UI ui;
@@ -23,6 +26,58 @@ static std::filesystem::path overrides;
 static std::filesystem::path display_preferences;
 static int smoke_frames = 0;
 static void PumpPreview() { MSG message; while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&message); DispatchMessageW(&message); } }
+static bool PerformanceTests(HWND owner) {
+  // Synthetic data only: no Rime sessions, user dictionaries or input events.
+  KillTimer(owner, 1);
+  ShowWindow(owner, SW_SHOWNOACTIVATE); ui.Show(); PumpPreview();
+  auto original = ui.style();
+  auto originalContext = context;
+  std::ofstream report("native-performance-test.csv");
+  report << "mode,characters,annotation,shadow,layout_p50_ms,layout_p95_ms,frame_p50_ms,frame_p95_ms\n";
+  using Clock = std::chrono::steady_clock;
+  auto milliseconds = [](Clock::time_point start) {
+    return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+  };
+  auto percentile = [](std::vector<double> values, size_t p) {
+    std::sort(values.begin(), values.end()); return values[(values.size() - 1) * p / 100];
+  };
+  CClientDC dc(owner);
+  for (bool images : {false, true}) for (bool shadow : {false, true})
+    for (int annotation : {1, 2}) for (int length : {4, 16, 32, 64}) {
+      ui.style() = original;
+      auto& style = ui.style();
+      if (!images) { style.skin_images.clear(); style.skin_frame_image.clear(); }
+      if (!shadow) { style.shadow_color = style.candidate_shadow_color = style.hilited_candidate_shadow_color = 0; }
+      style.annotation_position = annotation;
+      context.cinfo.candies.clear(); context.cinfo.comments.clear(); context.cinfo.labels.clear();
+      for (int i = 0; i < 6; ++i) {
+        weasel::Text text, comment, label;
+        text.str.assign(length, L'岸');
+        for (int j = 0; j < length; ++j) comment.str += L"àn ";
+        label.str = std::to_wstring(i + 1);
+        context.cinfo.candies.push_back(text); context.cinfo.comments.push_back(comment); context.cinfo.labels.push_back(label);
+      }
+      context.preedit.str.assign(length * 2, L'a');
+      auto resources = std::make_shared<weasel::DirectWriteResources>(style, 144);
+      std::vector<double> layouts, frames;
+      for (int i = 0; i < 15; ++i) {
+        auto start = Clock::now();
+        weasel::HorizontalLayout layout(style, context, status, resources);
+        layout.DoLayout(CDCHandle(dc.m_hDC), resources);
+        double elapsed = milliseconds(start);
+        if (i >= 3) layouts.push_back(elapsed);
+        context.cinfo.highlighted = i % 6;
+        start = Clock::now(); ui.Update(context, status); PumpPreview();
+        elapsed = milliseconds(start);
+        if (i >= 3) frames.push_back(elapsed);
+      }
+      report << (images ? "skin" : "no-images") << ',' << length << ',' << annotation << ',' << shadow << ','
+             << percentile(layouts, 50) << ',' << percentile(layouts, 95) << ','
+             << percentile(frames, 50) << ',' << percentile(frames, 95) << '\n';
+    }
+  ui.style() = original; context = originalContext; ui.Update(context, status);
+  return report.good(); // Timings are evidence, not a hardware-independent FPS gate.
+}
 static bool RedrawTests(HWND owner) {
   std::ofstream report("native-redraw-test.log");
   KillTimer(owner, 1); // Keep synthetic data stable while testing appearance-only changes.
@@ -229,6 +284,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   bool layout_test = count == 2 && !wcscmp(args[1], L"--layout-test");
   bool preference_test = count == 2 && !wcscmp(args[1], L"--preferences-test");
   bool redraw_test = count == 2 && !wcscmp(args[1], L"--redraw-test");
+  bool performance_test = count == 2 && !wcscmp(args[1], L"--performance-test");
   for (int i = 1; i + 1 < count; i += 2) {
     if (!wcscmp(args[i], L"--manifest")) manifest = args[i + 1];
     if (!wcscmp(args[i], L"--variant")) variant = wtou8(args[i + 1]);
@@ -236,6 +292,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     if (!wcscmp(args[i], L"--display-preferences")) display_preferences = args[i + 1];
     if (!wcscmp(args[i], L"--smoke")) smoke_frames = 20;
     if (!wcscmp(args[i], L"--redraw-test")) redraw_test = true;
+    if (!wcscmp(args[i], L"--performance-test")) performance_test = true;
   }
   LocalFree(args);
   WNDCLASSW cls{}; cls.hInstance = instance; cls.lpfnWndProc = WindowProc;
@@ -279,6 +336,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   });
   style.hover_type = weasel::UIStyle::HILITE;
   ShowWindow(window, show); UpdatePreview(window);
+  if (performance_test) { bool passed = PerformanceTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 7; }
   if (redraw_test) { bool passed = RedrawTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 6; }
   MSG msg; while (GetMessageW(&msg, nullptr, 0, 0) > 0) { TranslateMessage(&msg); DispatchMessageW(&msg); }
   _Module.Term(); CoUninitialize(); return 0;

@@ -78,6 +78,9 @@ jobs:
           if errorlevel 1 exit /b 1
           .tools\skin_image_loader_test.exe skins\shorekeeper\shorekeeper-watermelon.png
           if errorlevel 1 exit /b 1
+      - name: Test physical skin resource paths across caller views
+        shell: pwsh
+        run: ./tools/test-skin-asset-path.ps1
       - uses: actions/cache@v4
         id: boost
         with:
@@ -147,6 +150,10 @@ jobs:
           }
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--manifest', "$env:GITHUB_WORKSPACE/skins/shorekeeper/manifest.json", '--variant', 'watermelon', '--redraw-test', 'true') -WindowStyle Hidden -PassThru -Wait
           if ($test.ExitCode -ne 0) { throw "Style-only repaint/resource rollback regression failed: $($test.ExitCode)" }
+          $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--manifest', "$env:GITHUB_WORKSPACE/skins/shorekeeper/manifest.json", '--variant', 'watermelon', '--performance-test', 'true') -WindowStyle Hidden -PassThru
+          if (!$test.WaitForExit(180000)) { throw 'Synthetic long-candidate performance capture timed out' }
+          if ($test.ExitCode -ne 0) { throw "Performance capture failed: $($test.ExitCode)" }
+          Copy-Item native-performance-test.csv output/archives/
           foreach ($file in @('WeaselSkinPreview.exe', 'WeaselServer.exe', 'rime.dll', 'WinSparkle.dll')) {
             if (!(Test-Path "output/$file")) { throw "Missing tool dependency: $file" }
             Copy-Item "output/$file" output/archives/tools/
@@ -184,6 +191,7 @@ jobs:
             native-preferences-test.log
             native-layout-test.log
             native-redraw-test.log
+            native-performance-test.csv
             .tools/native-learning/
             .tools/settings-smoke/skins/ui-smoke-error.txt
             .tools/native-baseline-*/native-*-test.log

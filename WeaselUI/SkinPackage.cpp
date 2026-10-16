@@ -5,6 +5,7 @@
 #include <fstream>
 #include <regex>
 #include <gdiplus.h>
+#include "SkinAssetPath.h"
 
 namespace weasel {
 namespace {
@@ -39,7 +40,7 @@ std::filesystem::path Asset(const std::filesystem::path& root,
   for (auto check = result; check != root && !check.empty(); check = check.parent_path())
     if (GetFileAttributesW(check.c_str()) & FILE_ATTRIBUTE_REPARSE_POINT)
       throw std::runtime_error("Linked assets are not allowed");
-  return result;
+  return ResolveSkinAssetPath(result.wstring());
 }
 int Color(const Object& o, const char* key, int fallback) {
   auto* value = o.if_contains(key);
