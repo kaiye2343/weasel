@@ -32,7 +32,8 @@ public sealed class SkinPage : UserControl
         })));
         grid.Children.Add(Elements.Card(left));
         var right = new StackPanel(); right.Children.Add(title); right.Children.Add(info); right.Children.Add(cover); right.Children.Add(Elements.Text("皮肤变体", 16)); right.Children.Add(variants);
-        var actions = new WrapPanel(); actions.Children.Add(Elements.Button("原生预览", Preview)); actions.Children.Add(Elements.Button("启用此版本", Apply, true)); actions.Children.Add(Elements.Button("导出皮肤包", Export)); right.Children.Add(actions);
+        var actions = new WrapPanel(); actions.Children.Add(Elements.Button("原生预览", Preview)); actions.Children.Add(Elements.Button("启用此版本", Apply, true)); actions.Children.Add(Elements.Button("导出皮肤包", Export)); actions.Children.Add(Elements.Button("移除此版本", Remove)); right.Children.Add(actions);
+        right.Children.Add(Elements.Button("导出网页预览偏好", ExportDisplay));
         right.Children.Add(Elements.Text("选择其他已安装版本再启用，即可回退。皮肤只影响候选窗外观，不改变方案、简繁或学习数据。", 13, true));
         right.Children.Add(Elements.Button("打开离线皮肤设计器", () =>
         {
@@ -43,6 +44,9 @@ public sealed class SkinPage : UserControl
         }));
         right.Children.Add(Elements.Text("设计器在独立离线网页中编辑，导出后再导入此处。设置中心不编辑图片布局；仅支持无注音的皮肤会优先于全局注音偏好。", 13, true));
         var card = Elements.Card(right); Grid.SetColumn(card, 2); grid.Children.Add(card); Content = Elements.Scroll(grid);
+        AllowDrop = true;
+        DragOver += (_, e) => { e.Effects = DroppedPackage(e.Data) == null ? DragDropEffects.None : DragDropEffects.Copy; e.Handled = true; };
+        Drop += async (_, e) => { e.Handled = true; if (DroppedPackage(e.Data) is string file) await ImportFile(file); };
         library.SelectionChanged += (_, _) => SelectEntry(); Loaded += (_, _) => Refresh();
     }
     void Refresh()
@@ -67,8 +71,48 @@ public sealed class SkinPage : UserControl
     async void Import()
     {
         var dialog = new OpenFileDialog { Filter = "皮肤包|*.rimeskin;*.zip" }; if (dialog.ShowDialog() != true) return;
-        await context.Run(this, async () => { var skin = await Task.Run(() => context.Skins.Import(dialog.FileName)); Refresh(); library.SelectedItem = entries.First(e => e.Skin.Directory == skin.Directory); context.Report("皮肤已导入，尚未启用；可以先打开原生预览。"); });
+        await ImportFile(dialog.FileName);
     }
+    static string? DroppedPackage(IDataObject data)
+    {
+        if (!data.GetDataPresent(DataFormats.FileDrop) || data.GetData(DataFormats.FileDrop) is not string[] files || files.Length != 1) return null;
+        return Path.GetExtension(files[0]).ToLowerInvariant() is ".rimeskin" or ".zip" ? files[0] : null;
+    }
+    Task ImportFile(string file) => context.Run(this, async () =>
+    {
+        using var prepared = await Task.Run(() => context.Skins.PrepareImport(file));
+        if (prepared.ExistingVersions.Count > 0 || prepared.SameVersionExists)
+        {
+            string text = prepared.SameVersionExists
+                ? $"已安装 {prepared.Manifest.Name}（{prepared.Manifest.Id}）的 {prepared.Manifest.Version} 版本。\n\n是否用导入包覆盖此版本？旧包和选择状态将保留可恢复副本；正在使用时保留仍存在的变体，并清除该版本的旧样式覆盖。"
+                : $"已安装标识为 {prepared.Manifest.Id} 的皮肤。\n\n是否将 {prepared.Manifest.Version} 作为新版本导入？已有版本继续保留，当前启用版本不会自动改变。";
+            if (MessageBox.Show(Window.GetWindow(this), text, prepared.SameVersionExists ? "确认覆盖皮肤版本" : "导入同标识新版本", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        }
+        var state = context.Skins.Selection();
+        bool active = state.SkinId == prepared.Manifest.Id && state.SkinVersion == prepared.Manifest.Version;
+        bool applied = false;
+        var skin = await context.Skins.CommitImportAsync(prepared, prepared.SameVersionExists, async () => { applied = await context.RefreshSkin(); });
+        Refresh(); library.SelectedItem = entries.First(e => e.Skin.Directory == skin.Directory);
+        context.Report(active ? (applied ? "皮肤版本已更新并刷新；原包备份：" : "皮肤版本已保存，待服务启动时加载；原包备份：") + prepared.BackupDirectory : "皮肤已导入，尚未启用；可以先打开原生预览。");
+    });
+    async void Remove() => await context.Run(this, async () =>
+    {
+        if (Current == null) throw new InvalidOperationException("请选择要移除的版本。");
+        var skin = Current.Skin; var state = context.Skins.Selection();
+        bool active = state.SkinId == skin.Manifest.Id && state.SkinVersion == skin.Manifest.Version;
+        string text = $"移除 {skin.Manifest.Name} · {skin.Manifest.Version}？\n\n只移除此版本，其他版本保留。" + (active ? "当前正在使用，移除后恢复原生默认外观。" : "当前外观不会改变。") + "\n旧包及选择状态保存在皮肤目录的 history 中，可重新打包导入恢复。";
+        if (MessageBox.Show(Window.GetWindow(this), text, "确认移除皮肤版本", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        string backup = await context.Skins.RemoveAsync(skin, async () => { await context.RefreshSkin(); });
+        Refresh(); context.Report("已移除此版本；可恢复副本：" + backup);
+    });
+    async void ExportDisplay() => await context.Run(this, () =>
+    {
+        var dialog = new SaveFileDialog { Filter = "显示偏好|*.json", FileName = "rime-display-preview.json" };
+        if (dialog.ShowDialog() != true) return Task.CompletedTask;
+        SkinJson.WriteAtomic(dialog.FileName, new DisplayPreferencesStore(context.Skins.Root).Read());
+        context.Report("已导出显示偏好；在网页设计器中导入后，可按实际字号、密度和注音设置预览。不会改变皮肤包。");
+        return Task.CompletedTask;
+    });
     async void Apply() => await context.Run(this, async () =>
     {
         if (Current == null || Variant == null) throw new InvalidOperationException("请选择皮肤及变体。");

@@ -23,6 +23,7 @@ string Package(string name, string? extra = null, Action<SkinManifest>? edit = n
 try
 {
     SettingsTests.Run(temp, Check, Reject);
+    await SkinLibraryTests.Run(temp, (name, edit) => Package(name, edit: edit), Check, Reject);
     var store = new SkinStore(Path.Combine(temp, "store"));
     var skin = store.Import(Package("valid"));
     Check(store.List().Count == 1, "import valid package");

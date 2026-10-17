@@ -112,6 +112,11 @@ public sealed class SkinStore
     }
     public InstalledSkin Import(string archivePath)
     {
+        using var prepared = PrepareImport(archivePath);
+        return CommitImportAsync(prepared, false).GetAwaiter().GetResult();
+    }
+    public PreparedSkinImport PrepareImport(string archivePath)
+    {
         if (new FileInfo(archivePath).Length > MaxArchiveBytes) throw new InvalidDataException("皮肤包超过50MiB。");
         Directory.CreateDirectory(Root);
         string staging = Path.Combine(Root, ".staging-" + Guid.NewGuid().ToString("N"));
@@ -144,15 +149,114 @@ public sealed class SkinStore
                 }
             }
             var manifest = ValidateDirectory(staging);
-            string destination = Path.Combine(Root, "skins", manifest.Id, manifest.Version);
-            if (Directory.Exists(destination)) throw new InvalidDataException("该版本已存在；请使用新版本号，已有版本保持不变。");
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            Directory.Move(staging, destination);
-            return new(destination, manifest);
+            return new(this, staging, manifest, List().Where(s => s.Manifest.Id == manifest.Id).ToArray());
         }
-        finally
+        catch
         {
-            if (staging.StartsWith(Root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && Directory.Exists(staging)) Directory.Delete(staging, true);
+            DiscardStaging(staging);
+            throw;
+        }
+    }
+    internal void DiscardStaging(string staging)
+    {
+        if (Path.GetDirectoryName(staging) == Root && Path.GetFileName(staging).StartsWith(".staging-", StringComparison.Ordinal) && Directory.Exists(staging)) Directory.Delete(staging, true);
+    }
+    string ManagedDirectory(string id, string version)
+    {
+        if (!IsId(id) || !IsVersion(version)) throw new InvalidDataException("皮肤标识无效。");
+        string path = Path.Combine(Root, "skins", id, version);
+        for (string? p = path; p != null && !p.Equals(Root, StringComparison.OrdinalIgnoreCase); p = Path.GetDirectoryName(p))
+            if (Directory.Exists(p) && (File.GetAttributes(p) & FileAttributes.ReparsePoint) != 0) throw new IOException("皮肤目录包含链接，请先检查目录。");
+        return path;
+    }
+    string BackupChange(string operation, SkinManifest manifest, byte[]? state)
+    {
+        string history = Path.Combine(Root, "history");
+        if (Directory.Exists(history) && (File.GetAttributes(history) & FileAttributes.ReparsePoint) != 0) throw new IOException("备份目录不能是链接。");
+        string backup = Path.Combine(Root, "history", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(backup);
+        SkinJson.WriteAtomic(Path.Combine(backup, "operation.json"), new { Operation = operation, manifest.Id, manifest.Version, PreviousStateExisted = state != null });
+        if (state != null) File.WriteAllBytes(Path.Combine(backup, "state.before.json"), state);
+        return backup;
+    }
+    void RestoreState(byte[]? state)
+    {
+        if (state == null) { if (File.Exists(StatePath)) File.Delete(StatePath); }
+        else
+        {
+            string temp = StatePath + "." + Guid.NewGuid().ToString("N") + ".rollback";
+            try { File.WriteAllBytes(temp, state); File.Move(temp, StatePath, true); }
+            finally { if (File.Exists(temp)) File.Delete(temp); }
+        }
+    }
+    FileStream LockLibrary()
+    {
+        Directory.CreateDirectory(Root);
+        return new(Path.Combine(Root, ".library.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+    }
+    public async Task<InstalledSkin> CommitImportAsync(PreparedSkinImport prepared, bool replaceSameVersion, Func<Task>? refresh = null)
+    {
+        if (prepared.Owner != this || !Directory.Exists(prepared.Staging)) throw new InvalidOperationException("导入已完成、取消或来自其他皮肤库。");
+        using var libraryLock = LockLibrary();
+        var manifest = ValidateDirectory(prepared.Staging);
+        string destination = ManagedDirectory(manifest.Id, manifest.Version);
+        bool exists = Directory.Exists(destination);
+        if (exists && !replaceSameVersion) throw new InvalidDataException("该版本已存在；需要确认覆盖，或修改版本号后并存。");
+        byte[]? stateBytes = File.Exists(StatePath) ? File.ReadAllBytes(StatePath) : null;
+        var selection = Selection();
+        bool active = selection.SkinId == manifest.Id && selection.SkinVersion == manifest.Version;
+        string backup = BackupChange(exists ? "replace" : "import", manifest, stateBytes);
+        prepared.BackupDirectory = backup;
+        string previous = Path.Combine(backup, "package");
+        bool movedPrevious = false, installed = false, changedState = false;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            if (exists) { Directory.Move(destination, previous); movedPrevious = true; }
+            Directory.Move(prepared.Staging, destination); installed = true;
+            var result = new InstalledSkin(destination, manifest);
+            if (active)
+            {
+                string variant = manifest.Variants.Any(v => v.Id == selection.VariantId) ? selection.VariantId! : manifest.Variants[0].Id;
+                // A saved legacy style must not mask the newly imported design.
+                Select(result, variant); changedState = true;
+                if (refresh != null) await refresh();
+            }
+            return result;
+        }
+        catch
+        {
+            if (installed) Directory.Move(destination, Path.Combine(backup, "failed-import"));
+            if (movedPrevious) Directory.Move(previous, destination);
+            if (changedState) RestoreState(stateBytes);
+            if (changedState && refresh != null) try { await refresh(); } catch { /* Preserve the original failure. */ }
+            throw;
+        }
+    }
+    public async Task<string> RemoveAsync(InstalledSkin skin, Func<Task>? refresh = null)
+    {
+        using var libraryLock = LockLibrary();
+        string directory = ManagedDirectory(skin.Manifest.Id, skin.Manifest.Version);
+        if (!Path.GetFullPath(skin.Directory).Equals(directory, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("只能移除本皮肤库中的版本。");
+        var manifest = ValidateDirectory(directory);
+        if (manifest.Id != skin.Manifest.Id || manifest.Version != skin.Manifest.Version) throw new InvalidDataException("皮肤已变更，请刷新列表。");
+        byte[]? stateBytes = File.Exists(StatePath) ? File.ReadAllBytes(StatePath) : null;
+        var selection = Selection();
+        bool active = selection.SkinId == manifest.Id && selection.SkinVersion == manifest.Version;
+        string backup = BackupChange("remove", manifest, stateBytes);
+        string package = Path.Combine(backup, "package");
+        Directory.Move(directory, package);
+        try
+        {
+            if (active) { Reset(); if (refresh != null) await refresh(); }
+            return backup;
+        }
+        catch
+        {
+            Directory.Move(package, directory);
+            if (active) RestoreState(stateBytes);
+            if (active && refresh != null) try { await refresh(); } catch { /* Preserve the original failure. */ }
+            throw;
         }
     }
     public IReadOnlyList<InstalledSkin> List()
@@ -199,4 +303,17 @@ public sealed class SkinStore
         if (File.Exists(destination)) throw new IOException("导出目标已存在。");
         ZipFile.CreateFromDirectory(skin.Directory, destination);
     }
+}
+
+public sealed class PreparedSkinImport : IDisposable
+{
+    internal SkinStore Owner { get; }
+    internal string Staging { get; }
+    public SkinManifest Manifest { get; }
+    public IReadOnlyList<InstalledSkin> ExistingVersions { get; }
+    public bool SameVersionExists => System.IO.Directory.Exists(Path.Combine(Owner.Root, "skins", Manifest.Id, Manifest.Version));
+    public string? BackupDirectory { get; internal set; }
+    internal PreparedSkinImport(SkinStore owner, string staging, SkinManifest manifest, IReadOnlyList<InstalledSkin> existing)
+    { Owner = owner; Staging = staging; Manifest = manifest; ExistingVersions = existing; }
+    public void Dispose() => Owner.DiscardStaging(Staging);
 }
