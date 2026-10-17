@@ -15,6 +15,20 @@ function ResponseSource([string]$source) {
   $response = Extract $source 'inline std::string _GetLabelText(' 'static inline COLORREF blend_colors('
   return $candidate + "`n" + $response
 }
+# The installed 0.17.4.64 client can remain loaded in an application during an
+# upgrade. Its style archive field sequence must remain identical; the new
+# manifest capability is enforced by the server via annotation_position.
+$oldHeader = (git -C $project show 'e023983:include/WeaselIPCData.h') -join "`n"
+if ($LASTEXITCODE -ne 0) { throw 'Missing installed protocol baseline' }
+$newHeader = [IO.File]::ReadAllText((Join-Path $project 'include/WeaselIPCData.h'))
+$styleStart = 'void serialize(Archive& ar, weasel::UIStyle& s,'
+$styleEnd = 'template <typename Archive>'
+function ArchiveFields([string]$header) {
+  $body = Extract $header $styleStart $styleEnd
+  return ([regex]::Matches($body, 's\.[a-zA-Z_][a-zA-Z_0-9]*') | ForEach-Object { $_.Value }) -join ','
+}
+if ((ArchiveFields $oldHeader) -ne (ArchiveFields $newHeader)) { throw 'UIStyle archive fields differ from installed-client baseline' }
+Write-Output 'PASS UIStyle archive field order matches installed 0.17.4.64 clients'
 function CheckExe([string]$exe, [int]$expected = 0) {
   $log = $exe + '.stdout.log'
   $errorLog = $exe + '.stderr.log'

@@ -161,7 +161,7 @@ int main() try {
     style.inline_preedit = true;
     style.label_font_point = 12; style.comment_font_point = 10;
     style.label_text_format = L"%s.";
-    style.annotation_position = 1;
+    style.annotation_position = 2;
     style.skin_supports_annotation = false;
     style.skin_images.push_back({L"X:\\皮肤\\test.png", L"top-right", -7, 9, 50, 60, 1});
     input.select_labels = mode == 2 ? labels : nullptr;
@@ -170,7 +170,9 @@ int main() try {
     Check(r.status.schema_id == L"wanxiang_work" && r.status.composing &&
           r.status.ascii_mode && r.status.full_shape && !r.status.disabled,
           "status fields survive action ordering");
-    Check(r.config.inline_preedit && !(r.style != style),
+    auto expectedStyle = style;
+    expectedStyle.skin_supports_annotation = true; // Local-only manifest capability.
+    Check(r.config.inline_preedit && !(r.style != expectedStyle) && r.style.annotation_position == 2,
           "full custom style and inline setting roundtrip");
     Check(r.context.cinfo.currentPage == 2 && r.context.cinfo.is_last_page &&
           r.context.cinfo.highlighted == 1, "candidate page metadata");

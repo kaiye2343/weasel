@@ -488,7 +488,8 @@ void serialize(Archive& ar, weasel::UIStyle& s, const unsigned int version) {
   ar & s.background_fill_mode;
   ar & s.skin_images;
   ar & s.skin_border_style & s.skin_border_inset & s.annotation_position;
-  ar & s.skin_supports_annotation;
+  // Capability is resolved to annotation_position before IPC. Keep the wire
+  // layout compatible with clients already loaded before a complete upgrade.
   ar & s.annotation_collapse_empty & s.annotation_gap;
   ar & s.annotation_separator_enabled & s.annotation_separator_color;
   ar & s.annotation_separator_thickness & s.annotation_separator_fade;
