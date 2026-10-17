@@ -16,8 +16,16 @@ function ResponseSource([string]$source) {
   return $candidate + "`n" + $response
 }
 function CheckExe([string]$exe, [int]$expected = 0) {
-  & $exe
-  if ($LASTEXITCODE -ne $expected) { throw "$exe expected $expected, got $LASTEXITCODE" }
+  $log = $exe + '.stdout.log'
+  $errorLog = $exe + '.stderr.log'
+  $process = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden -RedirectStandardOutput $log -RedirectStandardError $errorLog
+  if (!$process.WaitForExit(30000)) {
+    $process.Kill()
+    throw "Isolated upstream regression timed out: $exe"
+  }
+  Get-Content -LiteralPath $log
+  Get-Content -LiteralPath $errorLog
+  if ($process.ExitCode -ne $expected) { throw "$exe expected $expected, got $($process.ExitCode)" }
 }
 function CompileResponse([string]$name, [string]$source, [bool]$legacy) {
   $directory = Join-Path $scratch $name
@@ -27,14 +35,14 @@ function CompileResponse([string]$name, [string]$source, [bool]$legacy) {
   if ($legacy) { $flags += '/DLEGACY_RESPONSE' }
   $sources = @('tests/upstream_response_test.cpp', 'WeaselIPC/ResponseParser.cpp', 'WeaselIPC/Deserializer.cpp', 'WeaselIPC/ActionLoader.cpp', 'WeaselIPC/Committer.cpp', 'WeaselIPC/ContextUpdater.cpp', 'WeaselIPC/Configurator.cpp', 'WeaselIPC/Styler.cpp')
   $exe = Join-Path $directory 'response.exe'
-  & cl @flags @sources "/Fo$directory/" "/Fe:$exe" /link "/LIBPATH:$env:BOOST_ROOT/stage/lib" advapi32.lib
+  & cl @flags @sources "/Fo$directory/" "/Fe:$exe" /link "/LIBPATH:$env:BOOST_ROOT/stage/lib" advapi32.lib user32.lib
   if ($LASTEXITCODE -ne 0) { throw "Response fixture compilation failed: $name" }
   CheckExe $exe
 }
 $responsePath = Join-Path $project 'RimeWithWeasel/RimeWithWeasel.cpp'
 CompileResponse 'current' ([IO.File]::ReadAllText($responsePath)) $false
 # The same client expectations must also pass on the pre-optimization responder.
-$baseline = git -C $project show 'f701308^:RimeWithWeasel/RimeWithWeasel.cpp'
+$baseline = git -C $project show 'c8c3332^:RimeWithWeasel/RimeWithWeasel.cpp'
 if ($LASTEXITCODE -ne 0) { throw 'Missing response baseline in Git history' }
 CompileResponse 'baseline' ($baseline -join "`n") $true
 $panel = [IO.File]::ReadAllText((Join-Path $project 'WeaselUI/WeaselPanel.cpp'))
