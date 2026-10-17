@@ -61,6 +61,19 @@ const valid=path.join(out,"valid.rimeskin");fs.writeFileSync(valid,P.packageByte
  await page.locator("#select-frame").click();
  // Fresh export also clears earlier validation notices and creates a realistic preview.
  const demoDownload=page.waitForEvent("download");await page.locator("#export-project").click();await(await demoDownload).saveAs(path.join(out,"demo-export.rimeskin"));
+ const savedStyle=await page.evaluate(()=>JSON.stringify(current().style));
+ await page.locator("#display-preview").selectOption("skin");
+ await check("raw preview uses package font",async()=>assert.equal(await page.evaluate(()=>geometry.font),await page.evaluate(()=>current().style.fontPoint*4/3)));
+ const preferencesFile=path.join(out,"display-preview.json");fs.writeFileSync(preferencesFile,JSON.stringify({schemaVersion:2,annotationEnabled:true,annotationPosition:"above",emptyAnnotationMode:"reserve",fontMode:"user",fontPoint:12,commentFontPoint:10,density:"compact"}));
+ await page.locator("#display-file").setInputFiles(preferencesFile);await page.waitForFunction(()=>document.querySelector("#status").textContent.startsWith("已载入个人显示偏好"));
+ await check("personal display preview uses native defaults without changing package",async()=>{assert.equal(await page.evaluate(()=>geometry.font),16);assert.equal(await page.evaluate(()=>JSON.stringify(current().style)),savedStyle);});
+ const legacyDir=path.join(root,"skins/shorekeeper"),legacyManifest=JSON.parse(fs.readFileSync(path.join(legacyDir,"manifest.json"),"utf8"));
+ const legacyAssets=new Map(fs.readdirSync(legacyDir).filter(n=>n.endsWith(".png")).map(n=>[n,new Uint8Array(fs.readFileSync(path.join(legacyDir,n)))]));
+ const legacyFile=path.join(out,"legacy-shorekeeper.rimeskin");fs.writeFileSync(legacyFile,P.packageBytes(legacyManifest,legacyAssets));
+ await page.locator("#package-file").setInputFiles(legacyFile);await page.waitForFunction(()=>current().id==="plush");
+ await check("legacy image anchors follow visible frame in both display profiles",async()=>{
+  for(const profile of["skin","user"]){await page.locator("#display-preview").selectOption(profile);for(const mode of["plain","annotated"]){await page.locator('[data-mode="'+mode+'"]').click();assert.equal(await page.evaluate(()=>geometry.layers.every((r,i)=>{const l=current().layers[i];return Math.abs(r.left-(l.anchor.endsWith("right")?geometry.width:0)-l.x)<.001&&Math.abs(r.top-(l.anchor.startsWith("bottom")?geometry.height:0)-l.y)<.001;})),true);}}
+ });
  const shot=process.env.DESIGNER_SCREENSHOT||path.join(out,"designer.png");await page.screenshot({path:shot,fullPage:true});
  for(const scale of["1","1.5","2"]){await page.locator("#zoom").selectOption(scale);await check("zoom "+scale+" finite geometry",async()=>assert.equal(await page.evaluate(()=>Number.isFinite(view.scale)&&view.scale>0),true));}
  await page.setViewportSize({width:1000,height:800});await page.waitForTimeout(100);

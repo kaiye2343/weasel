@@ -46,6 +46,16 @@ const m=P.newManifest(),assets=new Map([["preview.png",preview]]);
  check("Deflate package round trip",()=>assert.deepEqual(deflated.manifest,m));
  const beside=G.layout({...s,annotationPosition:"beside"},[],candidates,true,measure);
  check("legacy beside annotation occupies one row",()=>{assert.equal(beside.height,no.height);assert.ok(beside.cells[0].width>no.cells[0].width);});
+ const pref=G.preferences(),originalStyle=JSON.stringify(s),effective=G.effective(s,pref);
+ check("actual preview defaults match native display defaults",()=>{assert.equal(effective.fontPoint,12);assert.equal(effective.commentFontPoint,10);assert.equal(effective.candidateSpacing,8);assert.equal(effective.annotationPosition,"above");});
+ check("preview preferences never mutate exported skin style",()=>assert.equal(JSON.stringify(s),originalStyle));
+ check("follow skin uses original font and density",()=>{const x=G.effective(s,G.preferences({fontMode:"skin",density:"skin",annotationPosition:"skin"}));assert.equal(x.fontPoint,s.fontPoint);assert.equal(x.candidateSpacing,s.candidateSpacing);});
+ check("legacy hidden display preferences remain hidden",()=>assert.equal(G.effective(s,G.preferences({schemaVersion:1,annotationPosition:"hidden"})).annotationPosition,"hidden"));
+ check("reserved empty annotation retains row height",()=>assert.ok(G.layout(s,[],candidates.map(c=>({...c,comment:""})),true,measure,{emptyAnnotationMode:"reserve"}).height>missing.height));
+ reject("invalid preview preferences",()=>G.preferences({fontPoint:200}));
+ reject("unknown preview preferences",()=>G.preferences({script:"run"}));
+ const fitted=G.layout({...s,shadowRadius:32},layers,candidates,true,measure);
+ check("image anchor is independent of shadow canvas",()=>assert.deepEqual(fitted.layers.map(l=>[l.left-fitted.width,l.top-fitted.height]),g.layers.map(l=>[l.left-g.width,l.top-g.height])));
  for(const folder of["studio-demo","studio-plain"])if(fs.existsSync(path.join(__dirname,"../skins",folder,"manifest.json"))){
   const dir=path.join(__dirname,"../skins",folder),manifest=JSON.parse(fs.readFileSync(path.join(dir,"manifest.json"),"utf8")),data=new Map(fs.readdirSync(dir).filter(n=>n.endsWith(".png")).map(n=>[n,new Uint8Array(fs.readFileSync(path.join(dir,n)))]));
   check("example "+folder+" validates",()=>P.validate(manifest,data));

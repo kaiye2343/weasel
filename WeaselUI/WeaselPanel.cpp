@@ -180,10 +180,11 @@ void WeaselPanel::_UpdateSkinGeometry() {
     }
   }
   SkinRect bounds{0, 0, base.cx, base.cy};
+  const CRect visibleFrame = m_layout->GetContentRect();
   for (size_t i = 0; i < m_skin_config.size(); ++i) {
     const auto& image = m_skin_config[i];
     SkinRect rect = PlaceSkinImage(
-        base.cx, base.cy,
+        {visibleFrame.left, visibleFrame.top, visibleFrame.right, visibleFrame.bottom},
         image.anchor == L"top_right" || image.anchor == L"bottom_right",
         image.anchor == L"bottom_left" || image.anchor == L"bottom_right",
         DPI_SCALE(image.x), DPI_SCALE(image.y), DPI_SCALE(image.width),
@@ -720,7 +721,15 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
       auto* previous = m_bg_image;
       const auto previousPath = m_bg_image_path;
       m_bg_image = NULL;
-      Gdiplus::Bitmap* src = Gdiplus::Bitmap::FromFile(background.c_str());
+      Gdiplus::Bitmap* src = nullptr;
+      if (!m_style.skin_frame_image.empty()) {
+        // Skin packages can be replaced while active. Detach PNG pixels from
+        // the source file, as for decoration layers, before caching the frame.
+        SkinImageLoadError error;
+        src = LoadSkinBitmap(background.c_str(), error).release();
+      } else {
+        src = Gdiplus::Bitmap::FromFile(background.c_str());
+      }
       if (src && src->GetLastStatus() == Gdiplus::Ok) {
         // 加载成功才记账
         m_bg_image_path = background;

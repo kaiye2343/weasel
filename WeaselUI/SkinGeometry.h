@@ -6,18 +6,21 @@ struct SkinRect {
   int left, top, right, bottom;
 };
 
-// Offsets are relative to an anchor on the unadorned candidate canvas.
-inline SkinRect PlaceSkinImage(int canvas_width,
-                               int canvas_height,
+// Offsets belong to visible frame corners, never the outer shadow canvas.
+inline SkinRect PlaceSkinImage(SkinRect frame,
                                bool right,
                                bool bottom,
                                int x,
                                int y,
                                int width,
                                int height) {
-  const int left = (right ? canvas_width : 0) + x;
-  const int top = (bottom ? canvas_height : 0) + y;
+  const int left = (right ? frame.right : frame.left) + x;
+  const int top = (bottom ? frame.bottom : frame.top) + y;
   return {left, top, left + width, top + height};
+}
+inline SkinRect PlaceSkinImage(int width, int height, bool right, bool bottom,
+                               int x, int y, int image_width, int image_height) {
+  return PlaceSkinImage({0, 0, width, height}, right, bottom, x, y, image_width, image_height);
 }
 
 inline SkinRect ExpandSkinCanvas(SkinRect bounds, SkinRect image) {

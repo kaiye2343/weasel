@@ -3,6 +3,7 @@
 const P=SkinPackage,G=SkinGeometry,$=id=>document.getElementById(id);
 let manifest=P.newManifest(),assets=new Map(),images=new Map(),variant=0,selected=-1,tab="appearance",mode="annotated",dirty=false,busy=false,geometry=null,view=null,drag=null,history=[],assetSerial=0;
 const canvas=$("canvas"),ctx=canvas.getContext("2d");
+let displayPreferences=G.preferences();
 const samples={
  short:[["你好","nǐ hǎo"],["拟好","nǐ hǎo"],["泥蒿","ní hāo"],["你","nǐ"],["泥","ní"]],
  long:[["晴空与海岸","qíng kōng yǔ hǎi àn"],["所有未竟之事","suǒ yǒu wèi jìng zhī shì"],["今天","jīn tiān"],["此刻","cǐ kè"],["你好","nǐ hǎo"]],
@@ -112,11 +113,12 @@ function nineSlice(image,w,h,slice){
  for(let y=0;y<3;y++)for(let x=0;x<3;x++)if(sx[x+1]>sx[x]&&sy[y+1]>sy[y]&&dx[x+1]>dx[x]&&dy[y+1]>dy[y])ctx.drawImage(image.image,sx[x],sy[y],sx[x+1]-sx[x],sy[y+1]-sy[y],dx[x],dy[y],dx[x+1]-dx[x],dy[y+1]-dy[y]);
 }
 function draw(clean=false){
- const s=P.style(current().style);const candidates=samples[$("sample").value].map(([text,comment])=>({text,comment}));
+ const profile=$("display-preview").value==="user"?displayPreferences:null;
+ const s=G.effective(P.style(current().style),profile);const candidates=samples[$("sample").value].map(([text,comment])=>({text,comment}));
  const annotated=mode==="annotated"&&manifest.annotationSupport!=="none";
  const fontFace='"'+s.fontFace.replace(/["\\]/g,"")+'", sans-serif';
- const measure=(text,size)=>{ctx.font=size+"px "+fontFace;return ctx.measureText(text).width;};
- geometry=G.layout(s,current().layers,candidates,annotated,measure);
+ const measure=(text,size)=>{ctx.font=size+"px "+fontFace;const m=ctx.measureText(text);return {width:Math.ceil(m.width),height:Math.ceil((m.fontBoundingBoxAscent||size)+(m.fontBoundingBoxDescent||0))};};
+ geometry=G.layout(s,current().layers,candidates,annotated,measure,profile||{});
  const g=geometry,space=28,requested=Number($("zoom").value),available=$("stage").getBoundingClientRect();
  const scale=clean?Math.min(1,2048/(g.right-g.left+space*2),2048/(g.bottom-g.top+space*2)):Math.min(requested,(available.width-32)/(g.right-g.left+space*2),(available.height-100)/(g.bottom-g.top+space*2));
  const ratio=clean?1:window.devicePixelRatio||1,w=Math.ceil((g.right-g.left+space*2)*scale),h=Math.ceil((g.bottom-g.top+space*2)*scale);
@@ -135,7 +137,7 @@ function draw(clean=false){
  g.cells.forEach((c,i)=>{
   if(i===high){rounded(c.x-3,g.rowTop-2,c.width+6,c.height+4,5);ctx.fillStyle=cssColor(s.highlightColor);ctx.fill();}
   if(c.comment&&g.hasAnnotation){ctx.font=g.comment+"px "+fontFace;ctx.fillStyle=cssColor(s.commentColor);ctx.fillText(c.comment,c.commentX,c.commentY);}
-  ctx.font=g.font+"px "+fontFace;ctx.fillStyle=cssColor(i===high?s.highlightTextColor:s.textColor);const tx=c.textX;ctx.fillText(c.label+c.text,tx,c.textY);
+  ctx.font=g.font+"px "+fontFace;ctx.fillStyle=cssColor(i===high?s.highlightTextColor:s.textColor);const tx=c.textX;ctx.fillText(c.label,tx,c.textY);ctx.fillText(c.text,tx+c.labelWidth+g.gap,c.textY);
  });
  if(g.hasAnnotation&&g.above&&s.annotationSeparator.enabled){
   const x1=g.cells[0]?.x||0,x2=g.cells.at(-1)?g.cells.at(-1).x+g.cells.at(-1).width:g.width;
@@ -203,3 +205,7 @@ window.addEventListener("keydown",async e=>{if((e.ctrlKey||e.metaKey)&&e.key.toL
 window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue="";}});
 new ResizeObserver(()=>draw()).observe($("stage"));
 render();
+
+$("display-preview").onchange=()=>draw();
+$("load-display-preview").onclick=()=>{$("display-file").value="";$("display-file").click();};
+$("display-file").onchange=safe(async()=>{const file=$("display-file").files[0];if(!file)return;if(file.size>65536)throw Error("显示偏好文件过大");const next=G.preferences(JSON.parse(await file.text()));displayPreferences=next;$("display-preview").value="user";draw();status("已载入个人显示偏好 · 不改写皮肤包");});
