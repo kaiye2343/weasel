@@ -34,8 +34,10 @@ static void RoundTrip(bool stale) {
     if (!ConnectNamedPipe(pipe, nullptr) && GetLastError() != ERROR_PIPE_CONNECTED) Fail("ConnectNamedPipe");
   };
   const std::wstring body = L"isolated payload \u5b57\u5178";
+  std::atomic<bool> firstAccepted{false};
   boost::thread server([&]() {
     connect(first);
+    firstAccepted = true;
     HANDLE active = first;
     if (stale) {
       DWORD value = 0, count = 0;
@@ -55,6 +57,14 @@ static void RoundTrip(bool stale) {
   Channel channel{std::wstring(name)};
   try {
     if (!channel.Connect()) Fail("Connect client");
+    // The stale-handle case disconnects immediately. Wait until the fixture
+    // has accepted that connection; otherwise ConnectNamedPipe can observe
+    // ERROR_NO_DATA before the reconnect algorithm is exercised at all.
+    const ULONGLONG deadline = GetTickCount64() + 5000;
+    while (!firstAccepted) {
+      if (GetTickCount64() >= deadline) Fail("Fixture accept timed out");
+      Sleep(1);
+    }
     DWORD result = 0;
     if (stale) result = channel.SendWithStaleHandle(42);
     else { channel << body << L'\0'; DWORD value = 42; result = channel.Transact(value); }
