@@ -52,5 +52,10 @@ static class SkinLibraryTests
         check(store.List().Count == 0 && store.Selection().SkinId == null && refreshes == 2, "active removal resets to native appearance");
         check(File.ReadAllBytes(Path.Combine(backup, "state.before.json")).SequenceEqual(active), "removal retains previous selection bytes");
         reject(() => store.RemoveAsync(new InstalledSkin(temp, original.Manifest)).GetAwaiter().GetResult(), "reject removal outside managed library");
+        using var delayed = store.PrepareImport(package("library-delayed", m => m.Id = "race"));
+        check(!delayed.SameVersionExists, "new import has no replacement authorization");
+        new SkinStore(store.Root).Import(package("library-competing", m => { m.Id = "race"; m.Name = "先完成的导入"; }));
+        reject(() => store.CommitImportAsync(delayed, false).GetAwaiter().GetResult(), "late collision cannot bypass replacement confirmation");
+        check(store.List().Single().Manifest.Name == "先完成的导入", "late collision preserves competing import");
     }
 }

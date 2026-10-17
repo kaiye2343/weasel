@@ -81,17 +81,19 @@ public sealed class SkinPage : UserControl
     Task ImportFile(string file) => context.Run(this, async () =>
     {
         using var prepared = await Task.Run(() => context.Skins.PrepareImport(file));
-        if (prepared.ExistingVersions.Count > 0 || prepared.SameVersionExists)
+        bool sameVersion = prepared.SameVersionExists, replaceConfirmed = false;
+        if (prepared.ExistingVersions.Count > 0 || sameVersion)
         {
-            string text = prepared.SameVersionExists
+            string text = sameVersion
                 ? $"已安装 {prepared.Manifest.Name}（{prepared.Manifest.Id}）的 {prepared.Manifest.Version} 版本。\n\n是否用导入包覆盖此版本？旧包和选择状态将保留可恢复副本；正在使用时保留仍存在的变体，并清除该版本的旧样式覆盖。"
                 : $"已安装标识为 {prepared.Manifest.Id} 的皮肤。\n\n是否将 {prepared.Manifest.Version} 作为新版本导入？已有版本继续保留，当前启用版本不会自动改变。";
-            if (MessageBox.Show(Window.GetWindow(this), text, prepared.SameVersionExists ? "确认覆盖皮肤版本" : "导入同标识新版本", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(Window.GetWindow(this), text, sameVersion ? "确认覆盖皮肤版本" : "导入同标识新版本", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+            replaceConfirmed = sameVersion;
         }
         var state = context.Skins.Selection();
         bool active = state.SkinId == prepared.Manifest.Id && state.SkinVersion == prepared.Manifest.Version;
         bool applied = false;
-        var skin = await context.Skins.CommitImportAsync(prepared, prepared.SameVersionExists, async () => { applied = await context.RefreshSkin(); });
+        var skin = await context.Skins.CommitImportAsync(prepared, replaceConfirmed, async () => { applied = await context.RefreshSkin(); });
         Refresh(); library.SelectedItem = entries.First(e => e.Skin.Directory == skin.Directory);
         context.Report(active ? (applied ? "皮肤版本已更新并刷新；原包备份：" : "皮肤版本已保存，待服务启动时加载；原包备份：") + prepared.BackupDirectory : "皮肤已导入，尚未启用；可以先打开原生预览。");
     });
