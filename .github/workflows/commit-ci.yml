@@ -132,6 +132,9 @@ jobs:
       - name: Test upstream IPC fixes with negative controls
         shell: pwsh
         run: ./tools/test-upstream-ipc.ps1
+      - name: Test upstream response, hover and version adaptations without UI
+        shell: pwsh
+        run: ./tools/test-upstream-adaptations.ps1
       - name: Verify pinned librime SDK files
         shell: pwsh
         run: |

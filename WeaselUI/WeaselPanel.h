@@ -83,6 +83,7 @@ class WeaselPanel
   void _CaptureRect(CRect& rect);
   bool m_mouse_entry = false;
   CPoint m_lastMousePos = {-1, -1};
+  bool m_hasMousePos = false;
   void _CreateLayout();
   void _ResizeWindow();
   void _RepositionWindow(const bool& adj = false);

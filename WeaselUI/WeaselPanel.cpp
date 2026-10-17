@@ -575,12 +575,12 @@ LRESULT WeaselPanel::OnMouseMove(UINT uMsg,
   // Ignore if mouse screen position not changed
   CPoint ptScreen(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
   ClientToScreen(&ptScreen);
-  if (ptScreen == m_lastMousePos || m_lastMousePos.x == -1) {
-    if (m_lastMousePos.x == -1)
-      m_lastMousePos = ptScreen;
-    return 0;
-  }
+  const bool unchanged = m_hasMousePos && ptScreen == m_lastMousePos;
+  const bool first = !m_hasMousePos;
   m_lastMousePos = ptScreen;
+  m_hasMousePos = true;
+  if (unchanged || first)
+    return 0;
 
   for (size_t i = 0; i < m_candidateCount && i < MAX_CANDIDATES_COUNT; ++i) {
     CRect rect = m_layout->GetCandidateRect((int)i);
@@ -1624,6 +1624,7 @@ LRESULT WeaselPanel::OnDestroy(UINT uMsg,
   m_hoverIndex = -1;
   _ReleaseSkinImages();
   m_lastMousePos = {-1, -1};
+  m_hasMousePos = false;
   m_sticky = false;
   delete m_layout;
   m_layout = NULL;
