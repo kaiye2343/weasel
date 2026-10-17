@@ -45,8 +45,8 @@ public sealed class SkinPage : UserControl
         right.Children.Add(Elements.Text("设计器在独立离线网页中编辑，导出后再导入此处。设置中心不编辑图片布局；仅支持无注音的皮肤会优先于全局注音偏好。", 13, true));
         var card = Elements.Card(right); Grid.SetColumn(card, 2); grid.Children.Add(card); Content = Elements.Scroll(grid);
         AllowDrop = true;
-        DragOver += (_, e) => { e.Effects = DroppedPackage(e.Data) == null ? DragDropEffects.None : DragDropEffects.Copy; e.Handled = true; };
-        Drop += async (_, e) => { e.Handled = true; if (DroppedPackage(e.Data) is string file) await ImportFile(file); };
+        PreviewDragOver += (_, e) => { e.Effects = DroppedPackage(e.Data) == null ? DragDropEffects.None : DragDropEffects.Copy; e.Handled = true; };
+        PreviewDrop += async (_, e) => { e.Handled = true; if (DroppedPackage(e.Data) is string file) await ImportFile(file); };
         library.SelectionChanged += (_, _) => SelectEntry(); Loaded += (_, _) => Refresh();
     }
     void Refresh()
