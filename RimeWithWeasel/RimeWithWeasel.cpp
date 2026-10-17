@@ -1318,8 +1318,8 @@ static void _UpdateUIStyle(RimeConfig* config, UI* ui, bool initialize) {
     style.background_image = base + style.background_image;
   }
   // 底图填充模式：不写这一项 = stretch = 与旧行为逐像素一致
-  const std::map<std::string, int> _bgFillArr = {
-      {"stretch", 0}, {"tile", 1}, {"center", 2}, {"fit", 3}};
+  static constexpr Array<int, 4> _bgFillArr = {
+      {{"stretch", 0}, {"tile", 1}, {"center", 2}, {"fit", 3}}};
   _RimeParseStringOptWithFallback(config, "style/background_fill_mode",
                                   style.background_fill_mode, _bgFillArr,
                                   style.background_fill_mode);
