@@ -18,7 +18,9 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ilammy/msvc-dev-cmd@v1
-      - uses: actions/cache@v4
+      # Read the full-build cache, but never save a partial header/container cache
+      # under the full-build key if this standalone job encounters a cache miss.
+      - uses: actions/cache/restore@v4
         id: boost
         with:
           path: ${{ github.workspace }}\deps\boost_1_84_0
@@ -30,6 +32,12 @@ jobs:
           Invoke-WebRequest https://archives.boost.io/release/1.84.0/source/boost_1_84_0.7z -OutFile boost.7z
           7z x boost.7z -odeps -y
           if ($LASTEXITCODE -ne 0) { throw 'Boost extraction failed' }
+          Push-Location deps/boost_1_84_0
+          cmd /c bootstrap.bat
+          if ($LASTEXITCODE -ne 0) { throw 'Boost bootstrap failed' }
+          ./b2.exe --with-container variant=release link=static runtime-link=static threading=multi address-model=64 toolset=msvc -j2 stage
+          if ($LASTEXITCODE -ne 0) { throw 'Boost container build failed' }
+          Pop-Location
       - name: Extract exact official baseline and build identical driver
         shell: pwsh
         run: |
