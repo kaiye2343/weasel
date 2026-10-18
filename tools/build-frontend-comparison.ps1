@@ -19,5 +19,5 @@ if ($Fork) {
     '#include <boost/json/src.hpp>' | Set-Content -LiteralPath $jsonSource -Encoding utf8
     $files += "$source/WeaselUI/SkinPackage.cpp", $jsonSource
 }
-& cl @arguments $driver @files /link user32.lib gdi32.lib advapi32.lib ole32.lib shell32.lib uuid.lib
+& cl @arguments $driver @files /link "/LIBPATH:$BoostRoot/stage/lib" user32.lib gdi32.lib advapi32.lib ole32.lib shell32.lib uuid.lib
 if ($LASTEXITCODE -ne 0) { throw 'Frontend comparison compilation failed' }
