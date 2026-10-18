@@ -1,0 +1,60 @@
+name: Official frontend comparison
+on:
+  workflow_dispatch:
+  push:
+    branches: [shorekeeper]
+    paths:
+      - .github/workflows/frontend-comparison.yml
+      - tools/build-frontend-comparison.ps1
+      - tests/frontend_comparison_benchmark.cpp
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: actions/cache@v4
+        id: boost
+        with:
+          path: ${{ github.workspace }}\deps\boost_1_84_0
+          key: shorekeeper-windows2022-v143-boost-1.84.0-x86-x64
+      - name: Prepare Boost headers if cache unavailable
+        if: steps.boost.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://archives.boost.io/release/1.84.0/source/boost_1_84_0.7z -OutFile boost.7z
+          7z x boost.7z -odeps -y
+          if ($LASTEXITCODE -ne 0) { throw 'Boost extraction failed' }
+      - name: Extract exact official baseline and build identical driver
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .tools/official-source -Force | Out-Null
+          git archive --format=tar -o .tools/official-source.tar 0.17.4
+          tar -xf .tools/official-source.tar -C .tools/official-source
+          if ($LASTEXITCODE -ne 0) { throw 'Official source extraction failed' }
+          ./tools/build-frontend-comparison.ps1 -SourceRoot .tools/official-source -OutputRoot .tools/frontend/official -BoostRoot "$env:GITHUB_WORKSPACE/deps/boost_1_84_0"
+          ./tools/build-frontend-comparison.ps1 -SourceRoot . -OutputRoot .tools/frontend/fork -BoostRoot "$env:GITHUB_WORKSPACE/deps/boost_1_84_0" -Fork
+          git rev-parse HEAD 0.17.4 | Set-Content .tools/frontend/source-commits.txt
+      - name: Sequential ABBA comparison on synthetic data only
+        shell: pwsh
+        run: |
+          foreach ($case in @('official-a','fork-a','fork-b','official-b')) {
+            $backend = if ($case.StartsWith('official')) { 'official' } else { 'fork' }
+            & ".tools/frontend/$backend/frontend-comparison.exe" ".tools/frontend/$case.csv" --ci-ui
+            if ($LASTEXITCODE -ne 0) { throw "Benchmark failed: $case" }
+          }
+          Get-ComputerInfo -Property WindowsProductName,WindowsVersion,CsProcessors | Format-List | Out-File .tools/frontend/environment.txt
+          Get-ChildItem .tools/frontend -Recurse -File | Where-Object Extension -in '.exe','.csv' | Get-FileHash | Format-Table -AutoSize | Out-File .tools/frontend/hashes.txt -Width 240
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-comparison
+          path: |
+            .tools/frontend/**/*.exe
+            .tools/frontend/*.csv
+            .tools/frontend/*.txt
