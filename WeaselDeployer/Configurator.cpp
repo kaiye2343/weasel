@@ -259,6 +259,13 @@ int Configurator::DictManagement(const std::vector<std::wstring>& args) {
     PrintDictCliUsage();
     return kDictCliUsageError;
   }
+  if (restore || import_dict) {
+    const DWORD attributes = GetFileAttributesW(args[restore ? 1 : 2].c_str());
+    if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY)) {
+      std::wcerr << L"Dictionary input file is missing or is a directory.\n";
+      return 1;
+    }
+  }
 
   HANDLE hMutex = CreateMutex(NULL, TRUE, L"WeaselDeployerMutex");
   if (!hMutex) {
