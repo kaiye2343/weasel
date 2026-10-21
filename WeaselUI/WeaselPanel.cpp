@@ -1596,6 +1596,10 @@ void WeaselPanel::_LayerUpdate(const CRect& rc, CDCHandle dc) {
   BLENDFUNCTION bf = {AC_SRC_OVER, 0, 0XFF, AC_SRC_ALPHA};
   bool submitted = false;
   if (::GetPropW(m_hWnd, L"Weasel.ExperimentalDComp")) {
+    if (::GetPropW(m_hWnd, L"Weasel.DCompResetDevice")) {
+      m_dcomp.Reset();
+      ::RemovePropW(m_hWnd, L"Weasel.DCompResetDevice");
+    }
     HRESULT result = ::GetPropW(m_hWnd, L"Weasel.DCompForceFailure") ? E_FAIL :
         m_dcomp.Present(m_hWnd, dc, sz.cx, sz.cy,
                        ::GetPropW(m_hWnd, L"Weasel.DCompVerifyPixels") != nullptr);

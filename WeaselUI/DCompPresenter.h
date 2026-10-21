@@ -99,6 +99,8 @@ class DCompPresenter {
   }
  public:
   void Reset() {
+    if (target_) target_->SetRoot(nullptr);
+    if (composition_) composition_->Commit();
     if (dc_) dc_->SetTarget(nullptr);
     canvas_.Reset(); surface_.Reset(); visual_.Reset(); target_.Reset();
     composition_.Reset(); swap_.Reset(); dc_.Reset(); d2device_.Reset();

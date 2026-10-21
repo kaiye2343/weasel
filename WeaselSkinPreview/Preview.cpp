@@ -190,6 +190,16 @@ static bool DCompTests(HWND owner) {
   report << "dcomp_pixel_verified_frames=" << submitted << " passed=" << passed
          << " error=" << reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.DCompLastError")) << '\n';
   auto hash = GetPropW(panel, L"Weasel.RenderHash");
+  const auto beforeReset = reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.DCompFrames"));
+  SetPropW(panel, L"Weasel.DCompResetDevice", reinterpret_cast<HANDLE>(1));
+  ui.Hide(); ui.Show(); PumpPreview();
+  bool rebuilt = GetPropW(panel, L"Weasel.ExperimentalDComp") &&
+      !GetPropW(panel, L"Weasel.DCompFallback") &&
+      !GetPropW(panel, L"Weasel.DCompResetDevice") && hash &&
+      GetPropW(panel, L"Weasel.RenderHash") == hash &&
+      reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.DCompFrames")) > beforeReset;
+  passed = passed && rebuilt;
+  report << "device_reset_rebuild_preserves_pixels=" << rebuilt << '\n';
   auto before = reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.RenderGeneration"));
   SetPropW(panel, L"Weasel.DCompForceFailure", reinterpret_cast<HANDLE>(1));
   ui.Hide(); ui.Show(); PumpPreview();
