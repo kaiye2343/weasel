@@ -75,4 +75,16 @@ CheckExe "$scratch/hover-bad.exe" 1
 & cl /nologo /EHsc /std:c++17 /utf-8 /DVERSION_MAJOR=0 /DVERSION_MINOR=17 /DVERSION_PATCH=4 /DPRODUCT_VERSION=0.17.4.999.test "/I$project/include" tests/version_macro_test.cpp "/Fo$scratch/version.obj" "/Fe:$scratch/version.exe"
 if ($LASTEXITCODE -ne 0) { throw 'Product version expansion test failed' }
 CheckExe "$scratch/version.exe"
-Write-Output 'PASS upstream adaptations: real response/client, baseline semantics, hover with negative control, product version'
+function CompileAbort([string]$name, [string]$source, [int]$expected) {
+  $method = Extract $source 'void WeaselTSF::_AbortComposition(bool clear)' 'void WeaselTSF::_FinalizeComposition()'
+  [IO.File]::WriteAllText((Join-Path $scratch 'abort_under_test.inc'), $method, $utf8)
+  & cl /nologo /EHsc /std:c++17 /utf-8 /MT "/I$scratch" tests/upstream_abort_test.cpp "/Fo$scratch/$name.obj" "/Fe:$scratch/$name.exe"
+  if ($LASTEXITCODE -ne 0) { throw 'Candidate abort test compilation failed' }
+  CheckExe "$scratch/$name.exe" $expected
+}
+$composition = [IO.File]::ReadAllText((Join-Path $project 'WeaselTSF/Composition.cpp'))
+CompileAbort 'abort-current' $composition 0
+$oldComposition = git -C $project show '17b5c22:WeaselTSF/Composition.cpp'
+if ($LASTEXITCODE -ne 0) { throw 'Missing host-termination baseline' }
+CompileAbort 'abort-before-fix' ($oldComposition -join "`n") 1
+Write-Output 'PASS upstream adaptations: real response/client and optional cursor, baseline semantics, hover, abort lifecycle with negative controls, product version'

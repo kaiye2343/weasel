@@ -127,8 +127,28 @@ static void Comparisons() {
   Check(a == b, "const status comparison"); b.schema_id = L"work";
   Check(!(a == b), "status change detected");
 }
+static void OptionalCursor() {
+  for (const auto* cursor : {L"0,2", L"0,2,1", L"1"}) {
+    Context context;
+    ResponseParser parser(nullptr, &context);
+    std::wstring message = L"action=ctx\nctx.preedit=hello\nctx.preedit.cursor=";
+    message += cursor;
+    message += L"\n.\n";
+    Check(parser(message.data(), static_cast<UINT>(message.size())),
+          "optional cursor response parsed");
+    if (std::wstring(cursor) == L"1") {
+      Check(context.preedit.attributes.empty(), "incomplete range ignored");
+    } else {
+      Check(context.preedit.attributes.size() == 1, "one optional cursor range");
+      const auto& range = context.preedit.attributes.front().range;
+      Check(range.start == 0 && range.end == 2 &&
+                range.cursor == (std::wstring(cursor) == L"0,2" ? -1 : 1),
+            "missing cursor retains sentinel; explicit cursor survives");
+    }
+  }
+}
 int main() try {
-  Comparisons(); ConfigureApi();
+  Comparisons(); OptionalCursor(); ConfigureApi();
   input.data_size = sizeof(input) - sizeof(input.data_size);
   inputStatus.data_size = sizeof(inputStatus) - sizeof(inputStatus.data_size);
   inputStatus.schema_id = const_cast<char*>("wanxiang_work");
