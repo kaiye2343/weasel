@@ -164,13 +164,16 @@ static bool RedrawTests(HWND owner) {
   return passed;
 }
 static bool DCompTests(HWND owner) {
+  std::ofstream report("native-dcomp-test.log");
   HWND panel = ui.GetCandidateWindow();
-  if (!panel || !GetPropW(panel, L"Weasel.ExperimentalDComp")) return false;
+  if (!panel || !GetPropW(panel, L"Weasel.ExperimentalDComp")) {
+    report << "initial_dcomp_failed=1 error=" << (panel ? reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.DCompLastError")) : 0);
+    return false;
+  }
   SetPropW(panel, L"Weasel.DCompVerifyPixels", reinterpret_cast<HANDLE>(1));
   bool passed = RedrawTests(owner);
   SetPropW(panel, L"Weasel.RenderProbe", reinterpret_cast<HANDLE>(1));
   ui.Hide(); ui.Show(); PumpPreview();
-  std::ofstream report("native-dcomp-test.log");
   auto original = context;
   // Change candidate width and annotation height with the same skin package.
   for (int annotation : {0, 1, 2}) for (bool comments : {false, true}) for (int length : {4, 32}) {
@@ -184,7 +187,8 @@ static bool DCompTests(HWND owner) {
   }
   const auto submitted = reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.DCompFrames"));
   passed = passed && submitted >= 30;
-  report << "dcomp_pixel_verified_frames=" << submitted << " passed=" << passed << '\n';
+  report << "dcomp_pixel_verified_frames=" << submitted << " passed=" << passed
+         << " error=" << reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.DCompLastError")) << '\n';
   auto hash = GetPropW(panel, L"Weasel.RenderHash");
   auto before = reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.RenderGeneration"));
   SetPropW(panel, L"Weasel.DCompForceFailure", reinterpret_cast<HANDLE>(1));
