@@ -109,8 +109,10 @@ class DCompPresenter {
     DIBSECTION section = {};
     if (!width || !height || !GetObjectW(GetCurrentObject(source, OBJ_BITMAP), sizeof(section), &section) ||
         !section.dsBm.bmBits || section.dsBm.bmBitsPixel != 32 ||
-        section.dsBmih.biHeight >= 0 || section.dsBm.bmWidth != width || section.dsBm.bmHeight != height)
+        section.dsBm.bmWidth != width || section.dsBm.bmHeight != height)
       return E_INVALIDARG;
+    // Both production DIB constructors are explicitly top-down. GetObjectW
+    // normalizes biHeight to a positive value, so it cannot validate orientation.
     GdiFlush();
     HRESULT hr = S_OK;
     if (!device_ && FAILED(hr = Initialize(hwnd))) return hr;

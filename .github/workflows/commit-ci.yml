@@ -179,7 +179,7 @@ jobs:
             $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--manifest', "$env:GITHUB_WORKSPACE/skins/$skin/manifest.json", '--variant', $variant, '--dcomp-test', 'true') -WindowStyle Hidden -PassThru
             if (!$test.WaitForExit(120000)) { $test.Kill(); throw 'DComp preview timed out' }
             Copy-Item native-dcomp-test.log "output/archives/dcomp-$skin-$variant.log"
-            if ($test.ExitCode -ne 0) { Get-Content native-dcomp-test.log; Get-Content native-redraw-test.log; throw "DComp pixels/fallback failed: $skin $variant" }
+            if ($test.ExitCode -ne 0) { Get-Content native-dcomp-test.log; if (Test-Path native-redraw-test.log) { Get-Content native-redraw-test.log }; throw "DComp pixels/fallback failed: $skin $variant" }
           }
           ./tools/test-native-regressions.ps1
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--layout-test' -WindowStyle Hidden -PassThru -Wait
