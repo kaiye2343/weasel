@@ -4,6 +4,8 @@
 #include <WeaselUtility.h>
 #include <fstream>
 #include <vector>
+#include <fcntl.h>
+#include <io.h>
 #include "WeaselDeployer.h"
 #include "Configurator.h"
 
@@ -63,7 +65,13 @@ static void DetachGuiConsole() {
 }
 
 int wmain(int argc, wchar_t* argv[]) {
-  if (!IsDictionaryCli(argc, argv)) {
+  if (IsDictionaryCli(argc, argv)) {
+    // Wide console output and redirected pipes must preserve dictionary names
+    // and snapshot paths independently of the system ANSI code page.
+    if (_setmode(_fileno(stdout), _O_U8TEXT) == -1 ||
+        _setmode(_fileno(stderr), _O_U8TEXT) == -1)
+      return 1;
+  } else {
     // The GUI entry points are launched from the tray or Explorer. Detach
     // from the inherited or newly created console so those paths stay silent.
     DetachGuiConsole();

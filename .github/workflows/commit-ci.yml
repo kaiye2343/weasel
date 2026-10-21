@@ -135,6 +135,9 @@ jobs:
       - name: Test upstream response, hover and version adaptations without UI
         shell: pwsh
         run: ./tools/test-upstream-adaptations.ps1
+      - name: Test dictionary CLI with isolated Rime and maintenance failures
+        shell: pwsh
+        run: ./tools/test-deployer-cli.ps1
       - name: Verify pinned librime SDK files
         shell: pwsh
         run: |
@@ -165,6 +168,7 @@ jobs:
         # then restore and rebuild the repaired algorithms before packaging.
         shell: pwsh
         run: |
+          ./tools/test-deployer-cli.ps1 -VerifyPackage
           foreach ($file in @('output/WeaselServer.exe', 'output/WeaselDeployer.exe', 'output/weasel.dll', 'output/weaselx64.dll', 'output/Win32/WeaselServer.exe')) {
             if (!(Test-Path -LiteralPath $file)) { throw "Missing component: $file" }
           }
@@ -246,5 +250,7 @@ jobs:
             .tools/settings-smoke/skins/ui-smoke-error.txt
             .tools/native-baseline-*/native-*-test.log
             .tools/upstream-ipc-*/*/*.log
+            .tools/deployer-cli-*/*.log
+            .tools/deployer-cli-*/real-rime/*.log
           if-no-files-found: ignore
           retention-days: 7
