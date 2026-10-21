@@ -8,6 +8,7 @@
 #include <io.h>
 int main(int argc, char** argv) try {
   _setmode(_fileno(stdout), _O_U8TEXT);
+  real_files = true;
   Require(argc == 3, "provide DLL and fresh isolated root");
   const auto dll = std::filesystem::absolute(std::filesystem::u8path(argv[1]));
   const auto root = std::filesystem::absolute(std::filesystem::u8path(argv[2]));

@@ -17,6 +17,11 @@ static void Require(bool ok, const char* message) {
 static std::vector<std::string> events;
 static int failure = 0, connections = 0;
 static DWORD mutex_error = 0;
+static bool real_files = false;
+static DWORD FileAttributes(const wchar_t* path) {
+  return real_files ? GetFileAttributesW(path) : failure == 12 ? INVALID_FILE_ATTRIBUTES : FILE_ATTRIBUTE_NORMAL;
+}
+#define GetFileAttributesW FileAttributes
 static HANDLE FakeMutex(void*, BOOL, const wchar_t*) {
   events.push_back("mutex"); return failure == 1 ? nullptr : (HANDLE)1;
 }
@@ -138,6 +143,7 @@ int main() try {
   Require(c.DictManagement({L"list"}) == 1 && events == std::vector<std::string>{"mutex", "close"}, "busy deployer touched service");
   Reset(1); Require(c.DictManagement({L"list"}) == 1 && events.size() == 1, "mutex creation failure ignored");
   Reset(2); Require(c.DictManagement({L"list"}) == 0 && events.back() == "close", "absent service prevented offline dictionary tools");
+  Reset(12); Require(c.DictManagement({L"restore", L"missing"}) == 1 && events.empty(), "missing input touched service");
   for (std::wstring option : {L"/deploy", L"/sync", L"/install", L"/dict", L"/help"}) {
     Reset(); wchar_t* argv[] = {const_cast<wchar_t*>(L"deployer"), option.data()};
     Require(!IsDictionaryCli(2, argv), "GUI command classified as CLI");
