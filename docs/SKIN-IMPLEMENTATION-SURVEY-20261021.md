@@ -34,7 +34,7 @@
 
 本项目探索先使用 CodeGraph；原生部分索引覆盖有限，随后核对具体生产文件。外部项目采用固定提交的源码快照，没有执行它们的安装程序。
 
-DSH 辅助路径也做了核查：旧 Desktop 会话不可用且目录不符，未向其派发；`dsh-agent` 另外确实提供一次性 headless 短任务脚本。本机 headless profile 只有配置骨架，尚未安装对应依赖、未配置模型，因此本轮未运行 DSH，未采纳任何 DSH 自述结论。
+当时未向目录不符的旧 Desktop 会话派发研究任务，也未运行 DSH。后续核查修正：官方 headless 启动器可使用已安装运行时，用户 profile 的 `node_modules` 缺失不等于无法运行；旧短任务脚本的依赖限制不适用于官方启动器。后续已按用户指定的 5→6→3 优先级，通过 5 号 `workbuddy-global/deepseek-v4.1-flash` 完成独立渲染分支的小范围代码任务，无需切换。DSH Shell 因工作区 ACL 初始化失败未完成验证；Codex 审查实际 diff 并接手检查与 CI。此开发辅助不构成产品运行依赖，详见独立分支的 `docs/DCOMP-MIGRATION.md`。
 
 ## 3. 能力比较
 
