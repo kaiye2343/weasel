@@ -38,7 +38,7 @@ class UI {
   }
 
   // 创建输入法界面
-  bool Create(HWND parent);
+  bool Create(HWND parent, bool experimental_dcomp = false);
 
   // 销毁界面
   void Destroy(bool full = false);

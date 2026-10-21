@@ -5,6 +5,7 @@
 #include "StandardLayout.h"
 #include "Layout.h"
 #include "GdiplusBlur.h"
+#include "DCompPresenter.h"
 
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
@@ -60,6 +61,7 @@ class WeaselPanel
 
   WeaselPanel(weasel::UI& ui);
   ~WeaselPanel();
+  bool experimental_dcomp = false;  // Only set by the independent preview.
 
   void MoveTo(RECT const& rc);
   void Refresh();
@@ -105,6 +107,7 @@ class WeaselPanel
                 IDWriteTextFormat1* const pTextFormat = NULL);
 
   void _LayerUpdate(const CRect& rc, CDCHandle dc);
+  weasel::DCompPresenter m_dcomp;
   void _UpdateSkinGeometry();
   void _ReleaseSkinImages();
   void _DrawSkinImages(Gdiplus::Graphics& graphics, CPoint origin, bool below);

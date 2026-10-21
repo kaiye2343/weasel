@@ -84,11 +84,14 @@ VOID CALLBACK UIImpl::OnTimer(_In_ HWND hwnd,
   }
 }
 
-bool UI::Create(HWND parent) {
+bool UI::Create(HWND parent, bool experimental_dcomp) {
+  const DWORD exStyle = WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE |
+      WS_EX_TRANSPARENT | (experimental_dcomp ? WS_EX_NOREDIRECTIONBITMAP : 0);
   if (pimpl_) {
+    pimpl_->panel.experimental_dcomp = experimental_dcomp;
     pimpl_->panel.Create(
         parent, 0, 0, WS_POPUP,
-        WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+        exStyle,
         0U, 0);
     return true;
   }
@@ -97,9 +100,10 @@ bool UI::Create(HWND parent) {
   if (!pimpl_)
     return false;
 
+  pimpl_->panel.experimental_dcomp = experimental_dcomp;
   pimpl_->panel.Create(
       parent, 0, 0, WS_POPUP,
-      WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+      exStyle,
       0U, 0);
   return true;
 }

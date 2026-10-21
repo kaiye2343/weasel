@@ -163,6 +163,39 @@ static bool RedrawTests(HWND owner) {
   RemovePropW(panel, L"Weasel.StaticCacheGeneration");
   return passed;
 }
+static bool DCompTests(HWND owner) {
+  HWND panel = ui.GetCandidateWindow();
+  if (!panel || !GetPropW(panel, L"Weasel.ExperimentalDComp")) return false;
+  SetPropW(panel, L"Weasel.DCompVerifyPixels", reinterpret_cast<HANDLE>(1));
+  bool passed = RedrawTests(owner);
+  SetPropW(panel, L"Weasel.RenderProbe", reinterpret_cast<HANDLE>(1));
+  ui.Hide(); ui.Show(); PumpPreview();
+  std::ofstream report("native-dcomp-test.log");
+  auto original = context;
+  // Change candidate width and annotation height with the same skin package.
+  for (int annotation : {0, 1, 2}) for (bool comments : {false, true}) for (int length : {4, 32}) {
+    context = original;
+    context.cinfo.candies[0].str.assign(length, L'岸');
+    if (!comments) for (auto& comment : context.cinfo.comments) comment.clear();
+    ui.style().annotation_position = annotation;
+    ui.Update(context, status); PumpPreview();
+    passed = passed && GetPropW(panel, L"Weasel.ExperimentalDComp") &&
+        !GetPropW(panel, L"Weasel.DCompFallback");
+  }
+  const auto submitted = reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.DCompFrames"));
+  passed = passed && submitted >= 30;
+  report << "dcomp_pixel_verified_frames=" << submitted << " passed=" << passed << '\n';
+  auto hash = GetPropW(panel, L"Weasel.RenderHash");
+  auto before = reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.RenderGeneration"));
+  SetPropW(panel, L"Weasel.DCompForceFailure", reinterpret_cast<HANDLE>(1));
+  ui.Hide(); ui.Show(); PumpPreview();
+  passed = passed && hash && GetPropW(panel, L"Weasel.DCompFallback") &&
+      !GetPropW(panel, L"Weasel.ExperimentalDComp") &&
+      GetPropW(panel, L"Weasel.RenderHash") == hash &&
+      reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.RenderGeneration")) > before;
+  report << "forced_failure_preserves_gdi_pixels=" << passed << '\n';
+  return passed && report.good();
+}
 static bool PreferenceTests() {
   wchar_t previous[32768] = {}; GetEnvironmentVariableW(L"LOCALAPPDATA", previous, 32768);
   auto temporary = std::filesystem::absolute(std::filesystem::temp_directory_path());
@@ -333,6 +366,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   bool preference_test = count == 2 && !wcscmp(args[1], L"--preferences-test");
   bool redraw_test = count == 2 && !wcscmp(args[1], L"--redraw-test");
   bool performance_test = count == 2 && !wcscmp(args[1], L"--performance-test");
+  bool dcomp_test = count == 2 && !wcscmp(args[1], L"--dcomp-test");
   for (int i = 1; i + 1 < count; i += 2) {
     if (!wcscmp(args[i], L"--manifest")) manifest = args[i + 1];
     if (!wcscmp(args[i], L"--variant")) variant = wtou8(args[i + 1]);
@@ -341,6 +375,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     if (!wcscmp(args[i], L"--smoke")) smoke_frames = 20;
     if (!wcscmp(args[i], L"--redraw-test")) redraw_test = true;
     if (!wcscmp(args[i], L"--performance-test")) performance_test = true;
+    if (!wcscmp(args[i], L"--dcomp-test")) dcomp_test = true;
   }
   LocalFree(args);
   WNDCLASSW cls{}; cls.hInstance = instance; cls.lpfnWndProc = WindowProc;
@@ -359,7 +394,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   style.hilited_comment_text_color = 0xff997f61; style.hilited_candidate_back_color = 0xffffeedd;
   style.border_color = 0xffe9a94d; style.shadow_color = 0x30000000;
   style.hilite_spacing = 5; style.hilite_padding_x = 3; style.hilite_padding_y = 3; style.max_width = 800;
-  ui.Create(window);
+  ui.Create(window, dcomp_test);
   if (layout_test) {
     bool passed = LayoutTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 4;
   }
@@ -384,6 +419,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   });
   style.hover_type = weasel::UIStyle::HILITE;
   ShowWindow(window, show); UpdatePreview(window);
+  if (dcomp_test) { bool passed = DCompTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 8; }
   if (performance_test) { bool passed = PerformanceTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 7; }
   if (redraw_test) { bool passed = RedrawTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 6; }
   MSG msg; while (GetMessageW(&msg, nullptr, 0, 0) > 0) { TranslateMessage(&msg); DispatchMessageW(&msg); }

@@ -1239,7 +1239,10 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
 // draw client area
 void WeaselPanel::DoPaint(CDCHandle dc) {
   // turn off WS_EX_TRANSPARENT, for better resp performance
-  ModifyStyleEx(WS_EX_TRANSPARENT, WS_EX_LAYERED);
+  if (::GetPropW(m_hWnd, L"Weasel.ExperimentalDComp"))
+    ModifyStyleEx(WS_EX_TRANSPARENT | WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP);
+  else
+    ModifyStyleEx(WS_EX_TRANSPARENT | WS_EX_NOREDIRECTIONBITMAP, WS_EX_LAYERED);
   GetClientRect(&rcw);
   const CSize base_size = m_layout->GetContentSize();
   rcw = CRect(0, 0, base_size.cx, base_size.cy);
@@ -1591,8 +1594,28 @@ void WeaselPanel::_LayerUpdate(const CRect& rc, CDCHandle dc) {
   }
 
   BLENDFUNCTION bf = {AC_SRC_OVER, 0, 0XFF, AC_SRC_ALPHA};
-  if (UpdateLayeredWindow(m_hWnd, ScreenDC, &WindowPosAtScreen, &sz, dc,
-                          &PointOriginal, RGB(0, 0, 0), &bf, ULW_ALPHA)) {
+  bool submitted = false;
+  if (::GetPropW(m_hWnd, L"Weasel.ExperimentalDComp")) {
+    HRESULT result = ::GetPropW(m_hWnd, L"Weasel.DCompForceFailure") ? E_FAIL :
+        m_dcomp.Present(m_hWnd, dc, sz.cx, sz.cy,
+                       ::GetPropW(m_hWnd, L"Weasel.DCompVerifyPixels") != nullptr);
+    if (SUCCEEDED(result)) {
+      submitted = true;
+      auto frames = reinterpret_cast<ULONG_PTR>(::GetPropW(m_hWnd, L"Weasel.DCompFrames"));
+      ::SetPropW(m_hWnd, L"Weasel.DCompFrames", reinterpret_cast<HANDLE>(frames + 1));
+    } else {
+      ::SetPropW(m_hWnd, L"Weasel.DCompLastError", reinterpret_cast<HANDLE>(static_cast<ULONG_PTR>(result)));
+      _TraceSkinState("dcomp_present_failed");
+      m_dcomp.Reset();
+      ::RemovePropW(m_hWnd, L"Weasel.ExperimentalDComp");
+      ModifyStyleEx(WS_EX_NOREDIRECTIONBITMAP, WS_EX_LAYERED);
+      ::SetPropW(m_hWnd, L"Weasel.DCompFallback", reinterpret_cast<HANDLE>(1));
+    }
+  }
+  if (!submitted)
+    submitted = UpdateLayeredWindow(m_hWnd, ScreenDC, &WindowPosAtScreen, &sz, dc,
+                                    &PointOriginal, RGB(0, 0, 0), &bf, ULW_ALPHA) != FALSE;
+  if (submitted) {
     // Opt-in diagnostic probe: count successful frame submissions, not WM_PAINT.
     // RedrawWindow deliberately paints directly for applications which discard WM_PAINT.
     if (::GetPropW(m_hWnd, L"Weasel.RenderProbe")) {
@@ -1620,6 +1643,8 @@ LRESULT WeaselPanel::OnCreate(UINT uMsg,
                               WPARAM wParam,
                               LPARAM lParam,
                               BOOL& bHandled) {
+  if (experimental_dcomp)
+    ::SetPropW(m_hWnd, L"Weasel.ExperimentalDComp", reinterpret_cast<HANDLE>(1));
   m_mouse_entry = false;
   m_hoverIndex = -1;
   Refresh();
@@ -1631,6 +1656,7 @@ LRESULT WeaselPanel::OnDestroy(UINT uMsg,
                                LPARAM lParam,
                                BOOL& bHandled) {
   m_hoverIndex = -1;
+  m_dcomp.Reset();
   _ReleaseSkinImages();
   m_lastMousePos = {-1, -1};
   m_hasMousePos = false;
