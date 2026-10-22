@@ -48,6 +48,9 @@ try {
   }
 '@
    $baselineText=$baselineText.Replace($call,$probe)
+   # The historical panel predates the local placement API. Keep this neutral
+   # adapter so current UI lifetime code links, without adding the new algorithm.
+   $baselineText += "`nvoid WeaselPanel::ReloadPlacement() {}`n"
   }
   [IO.File]::WriteAllText($source,$baselineText,[Text.UTF8Encoding]::new($false))
  }
@@ -62,3 +65,24 @@ try {
  }
 }
 BuildPreview
+$uiFile = Join-Path $project 'WeaselUI/WeaselUI.cpp'
+$currentUi = [IO.File]::ReadAllText($uiFile)
+try {
+ $oldCondition = $currentUi.Replace('if (!shown) panel.ReloadPlacement();', 'if (needsPaint) panel.ReloadPlacement();')
+ if ($oldCondition -eq $currentUi) { throw 'Placement read negative-control seam changed' }
+ [IO.File]::WriteAllText($uiFile, $oldCondition, [Text.UTF8Encoding]::new($false))
+ BuildPreview
+ ExpectFailure '--placement-test' 8 'native-placement-test.log'
+ $failure = Get-Content -LiteralPath native-placement-test.log -Raw
+ if ($failure -notmatch 'visible_and_internally_hidden_updates_do_not_read_preferences=0' -or
+     $failure -notmatch 'refresh_and_reshow_preserve_caret_anchor=1' -or
+     $failure -notmatch 'recreated_window_replays_source_caret_and_preview_path=1') { throw 'Placement negative control failed for an unrelated reason' }
+ Write-Output 'PASS old Show condition reproduces extra placement reads after owner hides'
+} finally {
+ [IO.File]::WriteAllText($uiFile, $currentUi, [Text.UTF8Encoding]::new($false))
+}
+BuildPreview
+$fixed = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--placement-test' -WindowStyle Hidden -PassThru
+if (!$fixed.WaitForExit(60000)) { $fixed.Kill(); throw 'Fixed placement regression timed out' }
+Get-Content native-placement-test.log
+if ($fixed.ExitCode -ne 0) { throw 'Fixed placement did not pass after negative control' }

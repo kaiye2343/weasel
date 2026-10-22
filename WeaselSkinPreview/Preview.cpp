@@ -313,13 +313,13 @@ static bool PlacementTests(HWND owner) {
   ui.UpdateInputPosition(jitter); ui.Refresh(); PumpPreview();
   RECT jittered{}; GetWindowRect(panel, &jittered);
   stable = stable && EqualRect(&expected, &jittered);
-  auto hidden = context;
-  hidden.cinfo.candies.clear(); hidden.cinfo.labels.clear(); hidden.cinfo.comments.clear();
-  ui.Update(hidden, status); PumpPreview();
+  // The OS/owner can hide the HWND without changing UIImpl::shown. Exercise
+  // that boundary directly; an empty candidate list does not guarantee it.
+  ShowWindow(panel, SW_HIDE);
   bool internallyHidden = !IsWindowVisible(panel);
-  for (int i = 0; i < 10; ++i) { ui.Show(); ui.Refresh(); }
+  for (int i = 0; i < 10; ++i) { ShowWindow(panel, SW_HIDE); ui.Show(); ui.Refresh(); }
   noKeyReads = noKeyReads && internallyHidden && reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.PlacementReads")) == reads;
-  ui.Update(context, status);
+  report << "placement_reads_before=" << reads << " after_owner_hides=" << reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.PlacementReads")) << '\n';
   // Hiding/showing reloads only local appearance preferences, not the caret.
   ui.Hide(); ui.Show(); PumpPreview();
   RECT reshown{}; GetWindowRect(panel, &reshown);
