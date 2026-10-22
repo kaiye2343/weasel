@@ -57,3 +57,14 @@ DSH 只读审查使用 5 号 `workbuddy-global/deepseek-v4.1-flash`，会话 `se
 - 产物 ID `12400387300`，归档大小 `135509308` 字节，GitHub 提供的摘要为 `sha256:7a24ace4a4810195c443bb1a01134e4bb8e6a1ebcc47d24608c55f5137152b0e`。未下载或安装该归档，不宣称完成本机逐文件校验或日常实机验收。
 - 本地 58 项设计器测试通过；本机未配置 Playwright 和 C++／.NET SDK，相关浏览器、托管及原生验证由 Actions 执行。没有操作用户窗口、键鼠或输入法，没有重启服务或写入日常资料。
 - 用户保留的 `tools/SkinFileTrace/README.md` 未修改，SHA256 仍为 `B60CBA578020934A683AFDD8390EFFF88A4CAB8B8A9E67169E9E3CEF072CAD13`。
+
+## 用户授权后的本机安装（2026-10-22）
+
+- 用户明确要求安装并本人确认 Windows UAC 后，安装器返回 0，完整更新到 `0.17.4.117.80e3e46`。安装包 SHA256 为 `0BC7B936519CDDC218A0D192AC2B2F16CEC0CA28C799E68A04D4C54AD5D971EC`；下载的 435 个产物文件逐项校验通过。外层 GitHub 归档摘要未在本机独立核验。
+- 复用既有回滚基线，1065 个备份文件重新校验通过，没有新建完整备份。保存升级前日志、运行状态及冷态文件哈希。
+- 首次保留检查因 `installation.yaml` 的 `distribution_name` 变化而停止交接。随后找到与升级前 SHA256 完全相同的官方同步元数据副本，确认此前迁移工具写入的名称被安装器改回“小狼毫”；只有产品名称、版本和更新时间变化。`installation_id`、安装时间及其他字段保持，未覆盖此文件或任何学习数据库。保留首次失败与后续审查记录。
+- 491 个个人资料文件哈希保持一致；生成的 build、user.yaml、外观 runtime／日志不作为个人配置变化比较。工作／日常方案配置和微软拼音保留。
+- 6 个原生组件与安装器内对应组件匹配，System32／SysWOW64 前端一致，418 个设置中心文件逐项匹配。旧应用中已加载的 DLL 需用户重新打开应用后再检查新功能。
+- 安装器启动的提升权限服务正常退出，改由普通用户启动新服务。实际令牌核对为未提升；诊断资料根仍是已迁移的固定目录、PID 一致且 maintenance=false。
+- 没有操作用户窗口、键鼠或执行实际打字试验；用户负责桌面输入和位置／皮肤外观验收。此次安装不代表“问题1”或偶发图片消失根因已解决。
+- 私有记录位于 `.tools/placement-release.json`、`.tools/placement-install-result.json`、`.tools/placement-install-verification.json`、`.tools/placement-install-runtime-verification.json` 和本轮 capture 目录，不提交用户资料快照。
