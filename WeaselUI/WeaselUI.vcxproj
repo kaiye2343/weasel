@@ -302,6 +302,9 @@
     <ClCompile Include="VHorizontalLayout.cpp" />
     <ClCompile Include="WeaselPanel.cpp" />
     <ClCompile Include="SkinPackage.cpp" />
+    <ClCompile Include="SkinAssetPublisher.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="WeaselUI.cpp" />
   </ItemGroup>
   <ItemGroup>
