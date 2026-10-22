@@ -1,5 +1,6 @@
 #pragma once
 #include <WeaselIPCData.h>
+#include <WeaselSkinAssets.h>
 #include <filesystem>
 
 namespace weasel {
@@ -19,6 +20,10 @@ bool LoadSkinManifest(const std::filesystem::path& manifest,
                       const std::filesystem::path& overrides = {});
 // A missing or disabled skin preserves the Rime colors and applies display preferences.
 bool LoadActiveSkin(UIStyle& style, std::string& error);
+// Prepare every file before changing any path in the style sent to clients.
+bool PublishSkinStyle(UIStyle& style, SkinAssetPublisher& publisher,
+                      std::string& error);
+std::vector<std::wstring> SkinStyleAssets(const UIStyle& style);
 bool LoadDisplayPreferences(const std::filesystem::path& path, UIStyle& style,
                             std::string& error);
 }

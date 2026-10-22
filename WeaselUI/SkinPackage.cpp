@@ -112,6 +112,28 @@ std::filesystem::path SkinDataRoot() {
   if (!count || count >= 32768) throw std::runtime_error("LOCALAPPDATA unavailable");
   return std::filesystem::path(local) / L"ShorekeeperWeasel";
 }
+std::vector<std::wstring> SkinStyleAssets(const UIStyle& style) {
+  std::vector<std::wstring> paths;
+  for (const auto& image : style.skin_images) paths.push_back(image.path);
+  if (!style.skin_frame_image.empty()) paths.push_back(style.skin_frame_image);
+  else if (!style.background_image.empty()) paths.push_back(style.background_image);
+  return paths;
+}
+bool PublishSkinStyle(UIStyle& style, SkinAssetPublisher& publisher,
+                      std::string& error) {
+  const auto source = SkinStyleAssets(style);
+  std::vector<std::wstring> published;
+  if (!publisher.Publish(source, published, error)) return false;
+  UIStyle next = style;
+  size_t index = 0;
+  for (auto& image : next.skin_images) image.path = published.at(index++);
+  if (!next.skin_frame_image.empty()) {
+    next.skin_frame_image = published.at(index++);
+    next.background_image.clear(); // The nine-slice frame supersedes the legacy background.
+  } else if (!next.background_image.empty()) next.background_image = published.at(index++);
+  style = std::move(next);
+  return true;
+}
 bool LoadSkinManifest(const std::filesystem::path& manifest,
                       const std::string& variant, UIStyle& style, std::string& error,
                       const std::filesystem::path& overrides) {

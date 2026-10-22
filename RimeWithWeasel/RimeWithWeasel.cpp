@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <WeaselSkinTransaction.h>
 #include <logging.h>
 #include <WeaselSkin.h>
 #include <RimeWithWeasel.h>
@@ -193,6 +194,19 @@ void RimeWithWeaselHandler::Initialize() {
     rime_api->config_close(&config);
   }
   m_last_schema_id.clear();
+  if (m_ui) {
+    UIStyle initial = m_base_style;
+    std::string error;
+    if (_PrepareSkinStyle(initial, error)) {
+      m_ui->style() = std::move(initial);
+    } else {
+      LOG(WARNING) << "skin-publish: " << error;
+      m_ui->style().skin_images.clear();
+      m_ui->style().skin_frame_image.clear();
+      m_ui->style().background_image.clear();
+    }
+    _CollectSkinAssets();
+  }
 }
 
 void RimeWithWeaselHandler::Finalize() {
@@ -236,6 +250,9 @@ DWORD RimeWithWeaselHandler::AddSession(LPWSTR buffer, EatLine eat) {
              << ", ipc_id = " << ipc_id;
   SessionStatus& session_status = new_session_status(ipc_id);
   session_status.style = m_base_style;
+  session_status.style.skin_images.clear();
+  session_status.style.skin_frame_image.clear();
+  session_status.style.background_image.clear();
   session_status.session_id = session_id;
   _ReadClientInfo(ipc_id, buffer);
 
@@ -307,7 +324,19 @@ void RimeWithWeaselHandler::UpdateColorTheme(BOOL darkMode) {
       rime_api->free_status(&status);
     }
   }
-  m_ui->style() = get_session_status(m_active_session).style;
+  if (m_ui) {
+    const auto active = m_session_status_map.find(m_active_session);
+    if (active != m_session_status_map.end()) m_ui->style() = active->second.style;
+    else {
+      UIStyle next = m_base_style;
+      std::string error;
+      if (!_PrepareSkinStyle(next, error)) {
+        LOG(WARNING) << "skin-publish: " << error;
+        next.skin_images.clear(); next.skin_frame_image.clear(); next.background_image.clear();
+      }
+      m_ui->style() = std::move(next);
+    }
+  }
 }
 
 BOOL RimeWithWeaselHandler::ProcessKeyEvent(KeyEvent keyEvent,
@@ -620,17 +649,60 @@ void RimeWithWeaselHandler::_UpdateUI(WeaselSessionId ipc_id) {
 void RimeWithWeaselHandler::_LoadSchemaSpecificSettings(
     WeaselSessionId ipc_id,
     const std::string& schema_id) {
-  if (!m_ui)
-    return;
-  RimeConfig config;
-  if (!rime_api->schema_open(schema_id.c_str(), &config))
-    return;
-  _UpdateShowNotifications(&config);
-  m_ui->style() = m_base_style;
-  _UpdateUIStyle(&config, m_ui, false);
+  if (!m_ui) return;
   SessionStatus& session_status = get_session_status(ipc_id);
-  session_status.style = m_ui->style();
-  UIStyle& style = session_status.style;
+  UIStyle next;
+  std::string error;
+  if (!_PrepareSchemaStyle(schema_id, next, error)) {
+    LOG(WARNING) << "skin-publish: " << error;
+    if (!session_status.appearance_valid) {
+      // A new client must never receive inaccessible source image paths.
+      session_status.style.skin_images.clear();
+      session_status.style.skin_frame_image.clear();
+      session_status.style.background_image.clear();
+    }
+    m_ui->style() = session_status.style;
+    return;
+  }
+  next.client_caps = session_status.style.client_caps;
+  session_status.style = std::move(next);
+  session_status.appearance_valid = true;
+  m_ui->style() = session_status.style;
+  RimeConfig config = {};
+  if (rime_api->schema_open(schema_id.c_str(), &config)) {
+    _UpdateShowNotifications(&config);
+    rime_api->config_close(&config);
+  }
+}
+
+bool RimeWithWeaselHandler::_PrepareSkinStyle(UIStyle& style, std::string& error) {
+  try {
+    UIStyle next = style;
+    if (!LoadActiveSkin(next, error)) return false;
+    if (!m_skin_publisher) m_skin_publisher = std::make_unique<SkinAssetPublisher>();
+    if (!PublishSkinStyle(next, *m_skin_publisher, error)) return false;
+    style = std::move(next);
+    return true;
+  } catch (const std::exception&) {
+    error = "resource publisher initialization failed";
+    return false;
+  }
+}
+
+bool RimeWithWeaselHandler::_PrepareSchemaStyle(
+    const std::string& schema_id, UIStyle& result, std::string& error) {
+  RimeConfig config = {};
+  if (!rime_api->schema_open(schema_id.c_str(), &config)) {
+    error = "schema configuration unavailable";
+    return false;
+  }
+  const auto close = [](RimeConfig* value) { rime_api->config_close(value); };
+  std::unique_ptr<RimeConfig, decltype(close)> guard(&config, close);
+  // This UI has no HWND: measuring a proposed style cannot mutate visible UI.
+  UI proposed;
+  proposed.style() = m_base_style;
+  _UpdateUIStyle(&config, &proposed, false);
+  UIStyle& style = proposed.style();
   // load schema color style config
   const int BUF_SIZE = 255;
   char buffer[BUF_SIZE + 1] = {0};
@@ -679,10 +751,23 @@ void RimeWithWeaselHandler::_LoadSchemaSpecificSettings(
     style.current_half_icon = load_icon(config, "schema/half_icon", NULL);
   }
   // load schema icon end
-  std::string skin_error;
-  if (!LoadActiveSkin(style, skin_error))
-    LOG(WARNING) << "skin-load: " << skin_error;
-  rime_api->config_close(&config);
+  if (!_PrepareSkinStyle(style, error)) return false;
+  result = std::move(style);
+  return true;
+}
+
+void RimeWithWeaselHandler::_CollectSkinAssets() {
+  if (!m_skin_publisher) return;
+  std::vector<std::wstring> live;
+  const auto append = [&live](const UIStyle& style) {
+    auto files = SkinStyleAssets(style);
+    live.insert(live.end(), files.begin(), files.end());
+  };
+  if (m_ui) append(m_ui->style());
+  for (const auto& entry : m_session_status_map) append(entry.second.style);
+  std::string error;
+  if (!m_skin_publisher->RecordAndCollect(live, error))
+    LOG(WARNING) << "skin-cache-maintenance: " << error;
 }
 
 bool RimeWithWeaselHandler::SaveDiagnostics() {
@@ -697,6 +782,8 @@ bool RimeWithWeaselHandler::SaveDiagnostics() {
     data["userDataDirectory"] = WeaselUserDataPath().u8string();
     data["activeSession"] = (int64_t)m_active_session;
     data["maintenance"] = m_disabled;
+    data["skinAssetHashReads"] = m_skin_publisher
+        ? static_cast<int64_t>(m_skin_publisher->HashReads()) : 0;
     boost::json::array sessions;
     for (const auto& entry : m_session_status_map) {
       RIME_STRUCT(RimeStatus, status);
@@ -735,23 +822,45 @@ bool RimeWithWeaselHandler::SaveDiagnostics() {
 bool RimeWithWeaselHandler::ReloadSkin() {
   UIStyle check = m_base_style;
   std::string error;
-  if (!LoadActiveSkin(check, error)) {
+  if (!_PrepareSkinStyle(check, error)) {
     LOG(WARNING) << "skin-reload: " << error;
     return false;
   }
-  for (auto& entry : m_session_status_map) {
-    RIME_STRUCT(RimeStatus, status);
-    if (rime_api->get_status(entry.second.session_id, &status)) {
-      std::string schema(status.schema_id);
-      rime_api->free_status(&status);
-      _LoadSchemaSpecificSettings(entry.first, schema);
-      entry.second.__synced = false;
-    }
+  std::map<WeaselSessionId, UIStyle> prepared;
+  std::map<WeaselSessionId, UIStyle> current;
+  for (const auto& entry : m_session_status_map) {
+    if (entry.second.session_id) current.emplace(entry.first, entry.second.style);
   }
-  if (m_session_status_map.count(m_active_session)) {
-    m_ui->style() = get_session_status(m_active_session).style;
+  const auto prepare = [this](WeaselSessionId id, const UIStyle& old,
+                              UIStyle& next, std::string& reason) {
+    RIME_STRUCT(RimeStatus, status);
+    if (!rime_api->get_status(m_session_status_map.at(id).session_id, &status)) {
+      reason = "session status unavailable";
+      return false;
+    }
+    std::string schema(status.schema_id);
+    rime_api->free_status(&status);
+    if (!_PrepareSchemaStyle(schema, next, reason)) return false;
+    next.client_caps = old.client_caps;
+    return true;
+  };
+  if (!PrepareSkinStyleTransaction(current, prepared, prepare, error)) {
+    LOG(WARNING) << "skin-reload: " << error;
+    return false;
+  }
+  // No session or visible style changes until every resource has been prepared.
+  for (auto& entry : prepared) {
+    auto& session = m_session_status_map.at(entry.first);
+    session.style = std::move(entry.second);
+    session.appearance_valid = true;
+    session.__synced = false;
+  }
+  if (m_ui) {
+    m_ui->style() = prepared.count(m_active_session)
+        ? m_session_status_map.at(m_active_session).style : check;
     m_ui->Refresh();
   }
+  _CollectSkinAssets();
   LOG(INFO) << "skin-reload: applied without resetting Rime sessions";
   return true;
 }

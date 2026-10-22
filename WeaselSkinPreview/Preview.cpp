@@ -25,6 +25,56 @@ static std::string variant;
 static std::filesystem::path overrides;
 static std::filesystem::path display_preferences;
 static int smoke_frames = 0;
+static bool PublicationTests() {
+  Gdiplus::GdiplusStartupInput input;
+  ULONG_PTR gdip = 0;
+  if (Gdiplus::GdiplusStartup(&gdip, &input, nullptr) != Gdiplus::Ok) return false;
+  bool passed = false;
+  try {
+    const auto root = std::filesystem::absolute(std::filesystem::path(L".tools") /
+        (L"style-publication-" + std::to_wstring(GetCurrentProcessId())));
+    weasel::SkinAssetPublisher publisher(root / L"cache", root / L"private-state");
+    weasel::UIStyle style;
+    std::string error;
+    if (!weasel::LoadSkinManifest(L"skins/shorekeeper/manifest.json", "watermelon", style, error))
+      throw std::runtime_error(error);
+    const auto source = style;
+    // Both paths share the actual production publishing seam, including legacy background.
+    style.skin_frame_image = source.skin_images.at(0).path;
+    style.background_image = source.skin_images.at(1).path;
+    const auto original = style;
+    if (!weasel::PublishSkinStyle(style, publisher, error)) throw std::runtime_error(error);
+    auto expected = original;
+    for (size_t i = 0; i < expected.skin_images.size(); ++i)
+      expected.skin_images[i].path = style.skin_images[i].path;
+    expected.skin_frame_image = style.skin_frame_image;
+    expected.background_image.clear();
+    if (style != expected) throw std::runtime_error("publication changed layout or colors");
+    for (const auto& file : weasel::SkinStyleAssets(style))
+      if (std::filesystem::path(file).parent_path() != publisher.Root())
+        throw std::runtime_error("source path leaked to client style");
+    auto legacy = original;
+    legacy.skin_frame_image.clear();
+    if (!weasel::PublishSkinStyle(legacy, publisher, error) ||
+        std::filesystem::path(legacy.background_image).parent_path() != publisher.Root())
+      throw std::runtime_error("legacy background was not published");
+    auto invalid = original;
+    invalid.skin_images.back().path += L".missing.png";
+    const auto before = invalid;
+    if (weasel::PublishSkinStyle(invalid, publisher, error) || invalid != before)
+      throw std::runtime_error("failed publication changed partial style");
+    weasel::UIStyle plain;
+    const auto plainBefore = plain;
+    if (!weasel::PublishSkinStyle(plain, publisher, error) || plain != plainBefore)
+      throw std::runtime_error("pure color publication changed style");
+    std::ofstream("native-publication-test.log") << "PASS decoration/frame/background publication, unchanged geometry, pure colors and atomic failure\n";
+    passed = true;
+  } catch (const std::exception& error) {
+    std::ofstream("native-publication-test.log") << error.what() << '\n';
+  }
+  Gdiplus::GdiplusShutdown(gdip);
+  return passed;
+}
 static void PumpPreview() { MSG message; while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&message); DispatchMessageW(&message); } }
 static bool PerformanceTests(HWND owner) {
   // Synthetic data only: no Rime sessions, user dictionaries or input events.
@@ -384,6 +434,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
   CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED); _Module.Init(nullptr, instance);
   int count = 0; LPWSTR* args = CommandLineToArgvW(GetCommandLineW(), &count);
+  if (count == 2 && !wcscmp(args[1], L"--publication-test")) {
+    LocalFree(args);
+    const bool passed = PublicationTests();
+    _Module.Term(); CoUninitialize();
+    return passed ? 0 : 9;
+  }
   bool layout_test = count == 2 && !wcscmp(args[1], L"--layout-test");
   bool preference_test = count == 2 && !wcscmp(args[1], L"--preferences-test");
   bool redraw_test = count == 2 && !wcscmp(args[1], L"--redraw-test");

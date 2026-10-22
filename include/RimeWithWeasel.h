@@ -1,6 +1,7 @@
 #pragma once
 #include <WeaselIPC.h>
 #include <WeaselUI.h>
+#include <WeaselSkinAssets.h>
 #include <map>
 #include <string>
 
@@ -28,6 +29,7 @@ struct SessionStatus {
   weasel::UIStyle style;
   RimeStatus status;
   bool __synced;
+  bool appearance_valid = false;
   RimeSessionId session_id;
 };
 typedef std::map<DWORD, SessionStatus> SessionStatusMap;
@@ -72,6 +74,10 @@ class RimeWithWeaselHandler : public weasel::RequestHandler {
   void _UpdateUI(WeaselSessionId ipc_id);
   void _LoadSchemaSpecificSettings(WeaselSessionId ipc_id,
                                    const std::string& schema_id);
+  bool _PrepareSchemaStyle(const std::string& schema_id,
+                            weasel::UIStyle& style, std::string& error);
+  bool _PrepareSkinStyle(weasel::UIStyle& style, std::string& error);
+  void _CollectSkinAssets();
   void _LoadAppInlinePreeditSet(WeaselSessionId ipc_id,
                                 bool ignore_app_name = false);
   bool _ShowMessage(weasel::Context& ctx, weasel::Status& status);
@@ -104,6 +110,7 @@ class RimeWithWeaselHandler : public weasel::RequestHandler {
   std::string m_last_schema_id;
   std::string m_last_app_name;
   weasel::UIStyle m_base_style;
+  std::unique_ptr<weasel::SkinAssetPublisher> m_skin_publisher;
   std::map<std::string, bool> m_show_notifications;
   std::map<std::string, bool> m_show_notifications_base;
   std::function<void()> _UpdateUICallback;
