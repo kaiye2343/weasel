@@ -295,6 +295,7 @@ static void UpdatePreview(HWND window) {
 }
 static bool PlacementTests(HWND owner) {
   std::ofstream report("native-placement-test.log");
+  KillTimer(owner, 1);
   UpdatePreview(owner);
   HWND panel = ui.GetCandidateWindow();
   SetPropW(panel, L"Weasel.RenderProbe", reinterpret_cast<HANDLE>(1));
@@ -312,12 +313,13 @@ static bool PlacementTests(HWND owner) {
   ui.UpdateInputPosition(jitter); ui.Refresh(); PumpPreview();
   RECT jittered{}; GetWindowRect(panel, &jittered);
   stable = stable && EqualRect(&expected, &jittered);
-  auto originalStyle = ui.style();
-  ui.style().margin_x = -10;
-  ui.Refresh();
+  auto hidden = context;
+  hidden.cinfo.candies.clear(); hidden.cinfo.labels.clear(); hidden.cinfo.comments.clear();
+  ui.Update(hidden, status); PumpPreview();
+  bool internallyHidden = !IsWindowVisible(panel);
   for (int i = 0; i < 10; ++i) { ui.Show(); ui.Refresh(); }
-  noKeyReads = noKeyReads && reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.PlacementReads")) == reads;
-  ui.style() = originalStyle; ui.Refresh();
+  noKeyReads = noKeyReads && internallyHidden && reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.PlacementReads")) == reads;
+  ui.Update(context, status);
   // Hiding/showing reloads only local appearance preferences, not the caret.
   ui.Hide(); ui.Show(); PumpPreview();
   RECT reshown{}; GetWindowRect(panel, &reshown);
