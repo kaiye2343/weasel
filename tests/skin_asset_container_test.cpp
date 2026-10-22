@@ -103,12 +103,15 @@ int wmain(int argc, wchar_t** argv) {
       Require(argc == 3, "arguments: PNG isolated-root");
       fs::path root = fs::absolute(argv[2]); fs::create_directories(root); Access(root, true);
       fs::path sourceDir = root / L"private"; fs::create_directory(sourceDir); Access(sourceDir, false);
-      fs::path source = sourceDir / L"source.png", secret = sourceDir / L"learning.userdb.txt";
+      fs::path source = sourceDir / L"source.png", secret = root / L"Rime" / L"learning.userdb.txt";
       fs::copy_file(argv[1], source, fs::copy_options::overwrite_existing); Access(source, false);
-      { std::ofstream stream(secret); stream << "isolated dummy dictionary"; } Access(secret, false);
-      weasel::SkinAssetPublisher publisher(root / L"published", root / L"private-state");
+      weasel::SkinAssetPublisher publisher(root / L"Rime" / L"SkinAssets" / L"v1",
+                                           root / L"Rime" / L"SkinAssetState" / L"v1");
       std::vector<std::wstring> published; std::string error;
       Require(publisher.Publish({source.wstring()}, published, error), error.c_str());
+      // Inherit from the common parent without fixing up this file's ACL: the
+      // publisher must not make future unrelated Rime data container-readable.
+      { std::ofstream stream(secret); stream << "isolated dummy dictionary"; }
       weasel::SkinImageLoadError load; auto bitmap = weasel::LoadSkinBitmap(source.c_str(), load);
       Require(bitmap != nullptr, "source bitmap"); auto expected = Pixels(*bitmap);
       wchar_t self[32768]; Require(GetModuleFileNameW(nullptr, self, 32768) != 0, "test executable");

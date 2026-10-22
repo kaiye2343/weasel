@@ -339,10 +339,12 @@ struct SecurityContext {
   UniqueLocal cache_file_sd;
   UniqueLocal state_dir_sd;
   UniqueLocal state_file_sd;
+  UniqueLocal ancestor_sd;
   SECURITY_ATTRIBUTES cache_dir_sa{};
   SECURITY_ATTRIBUTES cache_file_sa{};
   SECURITY_ATTRIBUTES state_dir_sa{};
   SECURITY_ATTRIBUTES state_file_sa{};
+  SECURITY_ATTRIBUTES ancestor_sa{};
 
   bool Build(std::string& error) {
     std::vector<BYTE> user_sid;
@@ -360,10 +362,12 @@ struct SecurityContext {
     if (!Make(cache_file, cache_file_sd, error)) return false;
     if (!Make(common, state_dir_sd, error)) return false;
     if (!Make(state_file, state_file_sd, error)) return false;
+    if (!Make(common + L"(A;;0x20;;;S-1-15-2-1)(A;;0x20;;;S-1-15-2-2)", ancestor_sd, error)) return false;
     Initialize(cache_dir_sa, cache_dir_sd.get());
     Initialize(cache_file_sa, cache_file_sd.get());
     Initialize(state_dir_sa, state_dir_sd.get());
     Initialize(state_file_sa, state_file_sd.get());
+    Initialize(ancestor_sa, ancestor_sd.get());
     return true;
   }
 
@@ -519,8 +523,8 @@ class StateLock {
   bool Acquire(const fs::path& state_root, const SecurityContext& security,
                std::string& error) {
     if (!EnsureDirectory(state_root, security.state_dir_sa,
-                         security.state_dir_sd.get(), security.cache_dir_sa,
-                         security.cache_dir_sd.get(), true, error)) {
+                         security.state_dir_sd.get(), security.ancestor_sa,
+                         security.ancestor_sd.get(), true, error)) {
       return false;
     }
     const fs::path lock_path = state_root / L"publisher.lock";
@@ -1071,14 +1075,14 @@ bool SkinAssetPublisher::Publish(const std::vector<std::wstring>& sources,
     StateLock lock;
     if (!lock.Acquire(state_root_, security, error)) return false;
     if (!EnsureDirectory(root_, security.cache_dir_sa,
-                         security.cache_dir_sd.get(), security.cache_dir_sa,
-                         security.cache_dir_sd.get(), true, error)) {
+                         security.cache_dir_sd.get(), security.ancestor_sa,
+                         security.ancestor_sd.get(), true, error)) {
       return false;
     }
     const fs::path staging_root = state_root_ / L"staging";
     if (!EnsureDirectory(staging_root, security.state_dir_sa,
-                         security.state_dir_sd.get(), security.cache_dir_sa,
-                         security.cache_dir_sd.get(), true, error)) {
+                         security.state_dir_sd.get(), security.ancestor_sa,
+                         security.ancestor_sd.get(), true, error)) {
       return false;
     }
     StagingArea staging(staging_root, security.state_file_sa);
@@ -1169,8 +1173,8 @@ bool SkinAssetPublisher::RecordAndCollect(const std::vector<std::wstring>& live,
     if (!lock.Acquire(state_root_, security, error)) return false;
     const fs::path staging_root = state_root_ / L"staging";
     if (!EnsureDirectory(staging_root, security.state_dir_sa,
-                         security.state_dir_sd.get(), security.cache_dir_sa,
-                         security.cache_dir_sd.get(), true, error)) {
+                         security.state_dir_sd.get(), security.ancestor_sa,
+                         security.ancestor_sd.get(), true, error)) {
       return false;
     }
     StagingArea staging(staging_root, security.state_file_sa);
