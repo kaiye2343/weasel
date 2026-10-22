@@ -118,6 +118,8 @@ Mozc 将候选 GUI 放在 renderer 进程，客户端经 IPC 发送协议定义�
 
 ### 5.2 开始菜单／任务栏搜索：先确定候选窗归属
 
+**2026-10-22 现场更新：**用户重启后，SearchHost 已加载新版前端，容器内日志明确为 `native_allowed=1 window_created=1`，图片加载探测为 `file_error=5`（拒绝访问）、`decoded=0`。因此本次不是下文所述系统代绘分支。已确认宿主 AppContainer 令牌与私人图片访问权限缺口，详见 [新诊断与 Windows 开源实现对照](SEARCH-SKIN-ACCESS-20261022.md)。以下保留为查证前的分支分析。
+
 Microsoft 明确规定，`BeginUIElement` 返回 `pbShow=FALSE` 时，应用可能自行绘制 UI，文本服务不显示自己的对应 UI。本项目 `CandidateList::StartUI` 也据此决定是否创建候选窗口。[Microsoft API 约定](https://learn.microsoft.com/en-us/windows/win32/api/msctf/nf-msctf-itfuielementmgr-beginuielement)
 
 因此，开始菜单里无角色图片可能与宿主接管有关，也可能是其他生命周期问题；**此机现场尚未证明是哪一种**。如果没有本体候选窗，增加图片缓存或更换 D2D 都不会自动让系统绘制我们的装饰。不建议先用挂钩强制覆盖系统 UI。
