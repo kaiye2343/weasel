@@ -96,6 +96,9 @@ jobs:
           if errorlevel 1 exit /b 1
           .tools\skin_image_loader_test.exe skins\shorekeeper\shorekeeper-watermelon.png
           if errorlevel 1 exit /b 1
+      - name: Test skin publication and real AppContainer access without UI
+        shell: pwsh
+        run: ./tools/test-skin-publication.ps1
       - name: Test physical skin resource paths across caller views
         shell: pwsh
         run: ./tools/test-skin-asset-path.ps1
@@ -174,6 +177,11 @@ jobs:
           }
           msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$env:GITHUB_WORKSPACE\"
           if ($LASTEXITCODE -ne 0) { throw 'Native preview build failed' }
+          $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--publication-test' -WindowStyle Hidden -PassThru
+          if (!$test.WaitForExit(60000)) { $test.Kill(); throw 'Native style publication test timed out' }
+          Get-Content native-publication-test.log
+          if ($test.ExitCode -ne 0) { throw 'Native style publication transaction failed' }
+          Copy-Item native-publication-test.log output/archives/native-publication-test.log
           foreach ($sample in @(@('neutral','light'), @('shorekeeper','plush'))) {
             $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--manifest', "$env:GITHUB_WORKSPACE/skins/$($sample[0])/manifest.json", '--variant', $sample[1], '--placement-test', 'true') -WindowStyle Hidden -PassThru
             if (!$test.WaitForExit(60000)) { $test.Kill(); throw 'Native placement regression timed out' }
@@ -248,6 +256,7 @@ jobs:
           path: |
             msbuild*.log
             native-preferences-test.log
+            native-publication-test.log
             native-placement-test.log
             native-layout-test.log
             native-redraw-test.log
@@ -260,5 +269,6 @@ jobs:
             .tools/upstream-ipc-*/*/*.log
             .tools/deployer-cli-*/*.log
             .tools/deployer-cli-*/real-rime/*.log
+            .tools/skin-publication/**/**.log
           if-no-files-found: ignore
           retention-days: 7

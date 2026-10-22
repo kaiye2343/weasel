@@ -1456,6 +1456,15 @@ void WeaselPanel::_TraceSkinState(const char* reason, const std::string& detail)
            << " origin=" << m_skin_origin.x << ',' << m_skin_origin.y << " dpi=" << dpi
            << " thread=" << GetCurrentThreadId() << " gdip_startup=" << m_gdiplus_startup_status;
     if (!detail.empty()) stream << ' ' << detail;
+    for (const auto& image : m_style.skin_images) {
+      const auto name = std::filesystem::path(image.path).filename().wstring();
+      if (name.size() > 64 && name[64] == L'.' &&
+          std::all_of(name.begin(), name.begin() + 64, [](wchar_t c) {
+            return (c >= L'0' && c <= L'9') || (c >= L'a' && c <= L'f');
+          })) {
+        stream << " asset=" << std::string(name.begin(), name.begin() + 64);
+      }
+    }
     stream << '\n';
   } catch (const std::exception&) { }
 }
