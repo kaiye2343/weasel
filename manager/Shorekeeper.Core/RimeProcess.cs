@@ -114,7 +114,7 @@ public static class RimeSnapshots
         SkinJson.WriteAtomic(Path.Combine(directory, "config-hashes.json"), hashes);
         string renderLogs = Path.Combine(storage, "render-logs");
         if (Directory.Exists(renderLogs))
-            foreach (var file in new DirectoryInfo(renderLogs).EnumerateFiles("render-*.log*").OrderByDescending(f => f.LastWriteTimeUtc).Take(12))
+            foreach (var file in new DirectoryInfo(renderLogs).EnumerateFiles("*.log*").Where(f => f.Name.StartsWith("render-", StringComparison.Ordinal) || f.Name.StartsWith("presentation-", StringComparison.Ordinal)).OrderByDescending(f => f.LastWriteTimeUtc).Take(12))
                 if (file.Length < 512 * 1024) try { File.Copy(file.FullName, Path.Combine(directory, file.Name)); } catch (IOException) { }
         return directory;
     }

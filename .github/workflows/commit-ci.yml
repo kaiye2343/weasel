@@ -174,6 +174,13 @@ jobs:
           }
           msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$env:GITHUB_WORKSPACE\"
           if ($LASTEXITCODE -ne 0) { throw 'Native preview build failed' }
+          foreach ($sample in @(@('neutral','light'), @('shorekeeper','plush'))) {
+            $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--manifest', "$env:GITHUB_WORKSPACE/skins/$($sample[0])/manifest.json", '--variant', $sample[1], '--placement-test', 'true') -WindowStyle Hidden -PassThru
+            if (!$test.WaitForExit(60000)) { $test.Kill(); throw 'Native placement regression timed out' }
+            Get-Content native-placement-test.log
+            if ($test.ExitCode -ne 0) { throw 'Native caret placement regression failed' }
+            Copy-Item native-placement-test.log "output/archives/placement-$($sample[0]).log"
+          }
           ./tools/test-native-regressions.ps1
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--layout-test' -WindowStyle Hidden -PassThru -Wait
           if ($test.ExitCode -ne 0) { throw "Native annotation/DPI layout tests failed: $($test.ExitCode)" }
@@ -241,6 +248,7 @@ jobs:
           path: |
             msbuild*.log
             native-preferences-test.log
+            native-placement-test.log
             native-layout-test.log
             native-redraw-test.log
             native-performance-test.csv

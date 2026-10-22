@@ -54,6 +54,8 @@ const m=P.newManifest(),assets=new Map([["preview.png",preview]]);
  check("reserved empty annotation retains row height",()=>assert.ok(G.layout(s,[],candidates.map(c=>({...c,comment:""})),true,measure,{emptyAnnotationMode:"reserve"}).height>missing.height));
  reject("invalid preview preferences",()=>G.preferences({fontPoint:200}));
  reject("unknown preview preferences",()=>G.preferences({script:"run"}));
+ check("current display export accepts placement without changing skin geometry",()=>{const p=G.preferences({candidatePlacement:"above",candidateOffsetX:-20,candidateGap:18,avoidDecorations:false});assert.equal(p.candidateOffsetX,-20);assert.deepEqual(G.effective(s,p),G.effective(s,G.preferences()));});
+ reject("invalid placement export rejected",()=>G.preferences({candidateGap:-1}));
  const fitted=G.layout({...s,shadowRadius:32},layers,candidates,true,measure);
  check("image anchor is independent of shadow canvas",()=>assert.deepEqual(fitted.layers.map(l=>[l.left-fitted.width,l.top-fitted.height]),g.layers.map(l=>[l.left-g.width,l.top-g.height])));
  for(const folder of["studio-demo","studio-plain"])if(fs.existsSync(path.join(__dirname,"../skins",folder,"manifest.json"))){

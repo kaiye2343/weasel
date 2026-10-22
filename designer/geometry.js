@@ -2,10 +2,11 @@
 (function(root){
 "use strict";
 function preferences(value={}){
- if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).some(k=>!["schemaVersion","annotationEnabled","annotationPosition","emptyAnnotationMode","fontMode","fontPoint","commentFontPoint","density"].includes(k)))throw Error("显示偏好格式无效");
- const p={schemaVersion:2,annotationEnabled:true,annotationPosition:"above",emptyAnnotationMode:"collapse",fontMode:"user",fontPoint:12,commentFontPoint:10,density:"compact",...value};
+ if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).some(k=>!["schemaVersion","annotationEnabled","annotationPosition","emptyAnnotationMode","fontMode","fontPoint","commentFontPoint","density","candidatePlacement","candidateOffsetX","candidateGap","avoidDecorations"].includes(k)))throw Error("显示偏好格式无效");
+ const p={schemaVersion:2,annotationEnabled:true,annotationPosition:"above",emptyAnnotationMode:"collapse",fontMode:"user",fontPoint:12,commentFontPoint:10,density:"compact",candidatePlacement:"auto",candidateOffsetX:0,candidateGap:6,avoidDecorations:true,...value};
  if(p.schemaVersion===1){p.schemaVersion=2;p.fontMode="skin";p.density="skin";p.annotationEnabled=p.annotationPosition!=="hidden";if(!p.annotationEnabled)p.annotationPosition="above";}
  if(p.schemaVersion!==2||typeof p.annotationEnabled!=="boolean"||!["skin","above","beside"].includes(p.annotationPosition)||!["collapse","reserve"].includes(p.emptyAnnotationMode)||!["user","skin"].includes(p.fontMode)||!["compact","standard","skin"].includes(p.density)||!Number.isInteger(p.fontPoint)||p.fontPoint<8||p.fontPoint>48||!Number.isInteger(p.commentFontPoint)||p.commentFontPoint<8||p.commentFontPoint>32)throw Error("显示偏好格式无效");
+ if(!["auto","below","above"].includes(p.candidatePlacement)||!Number.isInteger(p.candidateOffsetX)||p.candidateOffsetX < -256||p.candidateOffsetX>256||!Number.isInteger(p.candidateGap)||p.candidateGap<0||p.candidateGap>128||typeof p.avoidDecorations!=="boolean")throw Error("候选窗位置偏好无效");
  return p;
 }
 function effective(style,p){

@@ -12,6 +12,10 @@ public sealed class DisplayPreferences
     public int FontPoint { get; set; } = 12;
     public int CommentFontPoint { get; set; } = 10;
     public string Density { get; set; } = "compact";
+    public string CandidatePlacement { get; set; } = "auto";
+    public int CandidateOffsetX { get; set; }
+    public int CandidateGap { get; set; } = 6;
+    public bool AvoidDecorations { get; set; } = true;
 }
 public sealed class DisplayPreferencesStore(string root)
 {
@@ -27,11 +31,12 @@ public sealed class DisplayPreferencesStore(string root)
         }
         Validate(value); return value;
     }
-    static void Validate(DisplayPreferences value)
+    public static void Validate(DisplayPreferences value)
     {
         if (value.SchemaVersion != 2 || value.AnnotationPosition is not ("skin" or "above" or "beside") ||
             value.EmptyAnnotationMode is not ("collapse" or "reserve") || value.FontMode is not ("user" or "skin") ||
-            value.Density is not ("compact" or "standard" or "skin") || value.FontPoint is < 8 or > 48 || value.CommentFontPoint is < 8 or > 32)
+            value.Density is not ("compact" or "standard" or "skin") || value.FontPoint is < 8 or > 48 || value.CommentFontPoint is < 8 or > 32 ||
+            value.CandidatePlacement is not ("auto" or "below" or "above") || value.CandidateOffsetX is < -256 or > 256 || value.CandidateGap is < 0 or > 128)
             throw new InvalidDataException("候选显示偏好无效。");
     }
     public void Save(DisplayPreferences value) { Validate(value); SkinJson.WriteAtomic(PathName, value); }

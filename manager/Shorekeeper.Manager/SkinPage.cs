@@ -34,6 +34,7 @@ public sealed class SkinPage : UserControl
         var right = new StackPanel(); right.Children.Add(title); right.Children.Add(info); right.Children.Add(cover); right.Children.Add(Elements.Text("皮肤变体", 16)); right.Children.Add(variants);
         var actions = new WrapPanel(); actions.Children.Add(Elements.Button("原生预览", Preview)); actions.Children.Add(Elements.Button("启用此版本", Apply, true)); actions.Children.Add(Elements.Button("导出皮肤包", Export)); actions.Children.Add(Elements.Button("移除此版本", Remove)); right.Children.Add(actions);
         right.Children.Add(Elements.Button("导出网页预览偏好", ExportDisplay));
+        right.Children.Add(Elements.Text("候选窗与输入行的距离、水平偏移及图片避让，可在“通用与候选显示”中调整并预览。", 13, true));
         right.Children.Add(Elements.Text("选择其他已安装版本再启用，即可回退。皮肤只影响候选窗外观，不改变方案、简繁或学习数据。", 13, true));
         right.Children.Add(Elements.Button("打开离线皮肤设计器", () =>
         {
@@ -124,30 +125,7 @@ public sealed class SkinPage : UserControl
         context.Skins.Select(Current.Skin, Variant.Id, legacy);
         try { await context.RefreshSkin(); } catch { SkinJson.WriteAtomic(context.Skins.StatePath, previous); throw; }
     });
-    async void Preview() => await context.Run(this, async () =>
-    {
-        string exe = Path.Combine(context.Tools, "WeaselSkinPreview.exe"); if (!File.Exists(exe)) throw new FileNotFoundException("完整构建包中提供原生预览程序。");
-        var start = new ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = context.Tools };
-        string? temporary = null;
-        start.ArgumentList.Add("--display-preferences");
-        start.ArgumentList.Add(new DisplayPreferencesStore(context.Skins.Root).PathName);
-        if (Current != null && Variant != null)
-        {
-            temporary = Path.Combine(context.Skins.Root, "previews", Guid.NewGuid().ToString("N") + ".json");
-            var style = new DisplayPreferencesStore(context.Skins.Root).EffectiveStyle(context.Skins, Current.Skin, Variant);
-            SkinJson.WriteAtomic(temporary, style);
-            foreach (var arg in new[] { "--manifest", Path.Combine(Current.Skin.Directory, "manifest.json"), "--variant", Variant.Id, "--style-overrides", temporary }) start.ArgumentList.Add(arg);
-        }
-        using var process = Process.Start(start) ?? throw new IOException("无法打开预览。");
-        context.Report("已打开原生隔离预览；不连接日常输入法。");
-        if (temporary != null) { string file = temporary; _ = Cleanup(process.Id, file); }
-        await Task.CompletedTask;
-    });
-    static async Task Cleanup(int pid, string file)
-    {
-        try { using var process = Process.GetProcessById(pid); await process.WaitForExitAsync(); } catch (ArgumentException) { }
-        try { File.Delete(file); } catch (IOException) { }
-    }
+    async void Preview() => await context.Run(this, () => NativePreviewLauncher.OpenAsync(context, Current?.Skin, Variant));
     async void Export()
     {
         if (Current == null) return; var skin = Current.Skin;
