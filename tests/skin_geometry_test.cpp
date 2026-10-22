@@ -33,4 +33,46 @@ int main() {
   const auto shifted = PlaceSkinImage(other, true, true, -176, -149, 221, 184);
   assert(shifted.left - other.left == framed.left - frame.left);
   assert(shifted.bottom - other.bottom == framed.bottom - frame.bottom);
+  // Reproduce the old placement bug: aligning the frame to the caret bottom
+  // puts the top decoration across the composing line.
+  SkinRect caret{200, 300, 350, 324}, work{0, 0, 1200, 900};
+  SkinRect textFrame{30, 80, 530, 130};
+  std::vector<SkinRect> images{{0, 0, 80, 100}, {480, 0, 650, 170}};
+  const int oldY = caret.bottom + 6 - textFrame.top;
+  assert(oldY < caret.bottom && oldY + images[0].bottom > caret.top);
+  auto placed = PlaceCandidateWindow(caret, work, 650, 170, textFrame, images, 0, 6, 0, true);
+  assert(placed.y == 330 && !placed.above && !placed.constrained);
+  assert(placed.x + textFrame.left == caret.left);
+  auto withoutImages = PlaceCandidateWindow(caret, work, 650, 170, textFrame, images, 0, 6, 0, false);
+  assert(withoutImages.y == oldY);
+  // A character outside the input line's horizontal range adds no extra gap.
+  std::vector<SkinRect> rightOnly{images[1]};
+  auto right = PlaceCandidateWindow(caret, work, 650, 170, textFrame, rightOnly, 0, 6, 0, true);
+  assert(right.y == oldY);
+  auto above = PlaceCandidateWindow(caret, work, 650, 170, textFrame, images, 0, 6, 2, true);
+  assert(above.above && above.y + images[0].bottom <= caret.top - 6);
+  // At a right edge the character moves over the input, so it must be avoided.
+  SkinRect edgeCaret{1120, 300, 1180, 324};
+  auto edge = PlaceCandidateWindow(edgeCaret, work, 650, 170, textFrame, rightOnly, 0, 6, 0, true);
+  assert(edge.x == 550 && edge.y == 330);
+  auto bottomEdge = PlaceCandidateWindow({200, 850, 350, 874}, work, 650, 170, textFrame, images, 0, 6, 1, true);
+  assert(bottomEdge.above && bottomEdge.y + textFrame.bottom <= 850 - 6);
+  auto topEdge = PlaceCandidateWindow({200, 10, 350, 34}, work, 650, 170, textFrame, images, 0, 6, 2, true);
+  assert(!topEdge.above && topEdge.y >= 40);
+  auto huge = PlaceCandidateWindow(caret, {0, 0, 400, 100}, 650, 170, textFrame, images, 256, 6, 0, true);
+  assert(huge.x == 0 && huge.y == 0 && huge.constrained);
+  auto negative = PlaceCandidateWindow({-900, 300, -750, 324}, {-1200, 0, 0, 900}, 650, 170, textFrame, images, -40, 6, 0, true);
+  assert(negative.x == -970 && negative.y == 330);
+  // Same physical results at 100%, 150%, 200%; no input rectangle mutation.
+  for (int percent : {100, 150, 200}) {
+    auto scale = [percent](int value) { return value * percent / 100; };
+    auto rect = [&](SkinRect r) { return SkinRect{scale(r.left), scale(r.top), scale(r.right), scale(r.bottom)}; };
+    std::vector<SkinRect> scaledImages; for (auto r : images) scaledImages.push_back(rect(r));
+    auto atDpi = PlaceCandidateWindow(rect(caret), rect(work), scale(650), scale(170), rect(textFrame), scaledImages, scale(12), scale(6), 0, true);
+    assert(atDpi.x == scale(182) && atDpi.y == scale(330));
+    for (int repeat = 0; repeat < 20; ++repeat) {
+      auto next = PlaceCandidateWindow(rect(caret), rect(work), scale(650), scale(170), rect(textFrame), scaledImages, scale(12), scale(6), 0, true);
+      assert(next.x == atDpi.x && next.y == atDpi.y);
+    }
+  }
 }

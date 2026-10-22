@@ -1652,6 +1652,7 @@ LRESULT WeaselPanel::OnDpiChanged(UINT uMsg,
 }
 
 void WeaselPanel::MoveTo(RECT const& rc) {
+  m_caret_rect = rc;
   if (!m_layout)
     return;  // avoid handling nullptr in _RepositionWindow
   m_redraw_by_monitor_change = false;
@@ -1703,6 +1704,26 @@ void WeaselPanel::_RepositionWindow(const bool& adj) {
   GetWindowRect(&rcWindow);
   int width = (rcWindow.right - rcWindow.left);
   int height = (rcWindow.bottom - rcWindow.top);
+  if (m_style.layout_type == UIStyle::LAYOUT_HORIZONTAL &&
+      m_status.composing && m_candidateCount && !hide_candidates &&
+      rcWorkArea.right > rcWorkArea.left && rcWorkArea.bottom > rcWorkArea.top) {
+    CRect frame = m_layout->GetContentRect(); frame.OffsetRect(m_skin_origin);
+    std::vector<SkinRect> images;
+    for (auto image : m_skin_rects) {
+      image.OffsetRect(m_skin_origin);
+      images.push_back({image.left, image.top, image.right, image.bottom});
+    }
+    auto placed = PlaceCandidateWindow(
+        {m_caret_rect.left, m_caret_rect.top, m_caret_rect.right, m_caret_rect.bottom},
+        {rcWorkArea.left, rcWorkArea.top, rcWorkArea.right, rcWorkArea.bottom},
+        width, height, {frame.left, frame.top, frame.right, frame.bottom}, images,
+        DPI_SCALE(m_placement.offset_x), DPI_SCALE(m_placement.gap),
+        m_placement.preference, m_placement.avoid_decorations);
+    m_istorepos = false;
+    SetWindowPos(HWND_TOPMOST, placed.x, placed.y, 0, 0,
+                 SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOREDRAW);
+    return;
+  }
   // keep panel visible
   rcWorkArea.right -= width;
   rcWorkArea.bottom -= height;
@@ -1754,6 +1775,14 @@ void WeaselPanel::_RepositionWindow(const bool& adj) {
   m_inputPos.bottom = y + m_skin_origin.y;
   SetWindowPos(HWND_TOPMOST, x, y, 0, 0,
                SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOREDRAW);
+}
+
+void WeaselPanel::ReloadPlacement() {
+  std::string error;
+  const auto path = m_placement_path.empty() ? SkinDataRoot() / L"display.json" : m_placement_path;
+  if (!LoadCandidatePlacement(path, m_placement, error))
+    _TraceSkinState("placement_invalid_preserving_previous");
+  if (m_layout && IsWindow()) _RepositionWindow();
 }
 
 void WeaselPanel::_TextOut(const CRect& rc,

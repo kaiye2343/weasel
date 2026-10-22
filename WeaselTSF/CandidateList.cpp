@@ -3,6 +3,7 @@
 #include "WeaselTSF.h"
 #include "CandidateList.h"
 #include <KeyEvent.h>
+#include <WeaselSkin.h>
 #include <math.h>
 
 using namespace std;
@@ -74,10 +75,15 @@ STDMETHODIMP CCandidateList::GetGUID(GUID* pguid) {
 }
 
 STDMETHODIMP CCandidateList::Show(BOOL showCandidateWindow) {
+  const bool transition = !!showCandidateWindow != _ui->IsShown();
   if (showCandidateWindow)
     _ui->Show();
   else
     _ui->Hide();
+  if (transition)
+    TraceCandidatePresentation(showCandidateWindow ? "show" : "hide", !!_pbShow,
+                                _ui->GetCandidateWindow() != nullptr,
+                                _style.skin_images.size(), S_OK);
   return S_OK;
 }
 
@@ -306,14 +312,19 @@ void CCandidateList::StartUI() {
                               bool* const next, bool* const scroll_next) {
       _tsf->HandleUICallback(sel, hov, next, scroll_next);
     });
-  if (FAILED(pUIElementMgr->BeginUIElement(this, &_pbShow, &uiid)))
+  hr = pUIElementMgr->BeginUIElement(this, &_pbShow, &uiid);
+  if (FAILED(hr)) {
+    TraceCandidatePresentation("begin_failed", !!_pbShow, false, _style.skin_images.size(), hr);
     return;
+  }
   _uiStarted = true;
   // pUIElementMgr->UpdateUIElement(uiid);
   if (_pbShow) {
     _ui->style() = _style;
     _MakeUIWindow();
   }
+  TraceCandidatePresentation(_pbShow ? "native_selected" : "host_selected", !!_pbShow,
+                              _ui->GetCandidateWindow() != nullptr, _style.skin_images.size(), hr);
 }
 
 void CCandidateList::EndUI() {

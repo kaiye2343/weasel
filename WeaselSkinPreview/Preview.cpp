@@ -289,9 +289,38 @@ static void UpdatePreview(HWND window) {
     comment.str = long_text && i == 0 ? L"wǒ xiǎng zài zhè lǐ cháng shì yí xià shū rù" : tones[i];
     context.cinfo.candies.push_back(text); context.cinfo.labels.push_back(label); context.cinfo.comments.push_back(comment);
   }
-  RECT rect; GetWindowRect(window, &rect);
-  RECT cursor{rect.left + 70, rect.top + 260, rect.left + 72, rect.top + 280};
+  POINT origin{70, 260}; ClientToScreen(window, &origin);
+  RECT cursor{origin.x, origin.y, origin.x + 150, origin.y + 24};
   ui.Update(context, status); ui.UpdateInputPosition(cursor); ui.Show();
+}
+static bool PlacementTests(HWND owner) {
+  std::ofstream report("native-placement-test.log");
+  UpdatePreview(owner);
+  HWND panel = ui.GetCandidateWindow();
+  RECT expected{}; GetWindowRect(panel, &expected);
+  bool stable = true;
+  for (int i = 0; i < 30; ++i) {
+    ui.Refresh(); PumpPreview();
+    RECT actual{}; GetWindowRect(panel, &actual);
+    stable = stable && EqualRect(&expected, &actual);
+  }
+  // Hiding/showing reloads only local appearance preferences, not the caret.
+  ui.Hide(); ui.Show(); PumpPreview();
+  RECT reshown{}; GetWindowRect(panel, &reshown);
+  stable = stable && EqualRect(&expected, &reshown);
+  report << "refresh_and_reshow_preserve_caret_anchor=" << stable << '\n';
+  weasel::CandidatePlacement value;
+  std::string error;
+  auto path = std::filesystem::temp_directory_path() / (L"RimePlacement-" + std::to_wstring(GetCurrentProcessId()) + L".json");
+  { std::ofstream file(path); file << R"({"schemaVersion":2,"candidatePlacement":"above","candidateOffsetX":-20,"candidateGap":18,"avoidDecorations":false})"; }
+  bool parsed = weasel::LoadCandidatePlacement(path, value, error) && value.preference == 2 && value.offset_x == -20 && value.gap == 18 && !value.avoid_decorations;
+  { std::ofstream file(path); file << R"({"candidateGap":-1})"; }
+  bool preserved = !weasel::LoadCandidatePlacement(path, value, error) && value.gap == 18 && value.offset_x == -20;
+  std::filesystem::remove(path);
+  report << "placement_parse_and_failure_preserve_previous=" << (parsed && preserved) << '\n';
+  weasel::TraceCandidatePresentation("host_selected", false, false, 3, S_OK);
+  weasel::TraceCandidatePresentation("native_selected", true, true, 3, S_OK);
+  return stable && parsed && preserved && report.good();
 }
 static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
   switch (message) {
@@ -316,6 +345,9 @@ static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w, LPARAM l) 
       HGDIOBJ oldFont = SelectObject(dc, font);
       RECT text{30, 30, 780, 150};
       DrawTextW(dc, L"原生皮肤预览 · 不连接输入法、不读取词库\n候选自动切换长短文本；拖动窗口测试屏幕边缘与跨屏\n按 1 上方注音 / 2 旁边注音 / 3 隐藏；Esc 关闭", -1, &text, DT_LEFT);
+      RECT input{70, 260, 220, 284};
+      DrawTextW(dc, L"shou'an'ren │", -1, &input, DT_LEFT | DT_SINGLELINE | DT_NOPREFIX);
+      MoveToEx(dc, 70, 286, nullptr); LineTo(dc, 220, 286);
       SelectObject(dc, oldFont); DeleteObject(font);
       EndPaint(hwnd, &paint); return 0;
     }
@@ -333,6 +365,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   bool preference_test = count == 2 && !wcscmp(args[1], L"--preferences-test");
   bool redraw_test = count == 2 && !wcscmp(args[1], L"--redraw-test");
   bool performance_test = count == 2 && !wcscmp(args[1], L"--performance-test");
+  bool placement_test = count == 2 && !wcscmp(args[1], L"--placement-test");
   for (int i = 1; i + 1 < count; i += 2) {
     if (!wcscmp(args[i], L"--manifest")) manifest = args[i + 1];
     if (!wcscmp(args[i], L"--variant")) variant = wtou8(args[i + 1]);
@@ -341,6 +374,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     if (!wcscmp(args[i], L"--smoke")) smoke_frames = 20;
     if (!wcscmp(args[i], L"--redraw-test")) redraw_test = true;
     if (!wcscmp(args[i], L"--performance-test")) performance_test = true;
+    if (!wcscmp(args[i], L"--placement-test")) placement_test = true;
   }
   LocalFree(args);
   WNDCLASSW cls{}; cls.hInstance = instance; cls.lpfnWndProc = WindowProc;
@@ -373,6 +407,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   }
   // Use the same defaults as production, without reading the user's active display.json.
   if (display_preferences.empty()) display_preferences = previewLogs / L"display.json";
+  ui.SetPlacementPreferencesPath(display_preferences);
   if (!weasel::LoadDisplayPreferences(display_preferences, style, error)) {
     MessageBoxW(window, u8tow(error).c_str(), L"显示偏好加载失败", MB_ICONERROR);
     DestroyWindow(window); _Module.Term(); CoUninitialize(); return 1;
@@ -384,6 +419,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   });
   style.hover_type = weasel::UIStyle::HILITE;
   ShowWindow(window, show); UpdatePreview(window);
+  if (placement_test) { bool passed = PlacementTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 8; }
   if (performance_test) { bool passed = PerformanceTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 7; }
   if (redraw_test) { bool passed = RedrawTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 6; }
   MSG msg; while (GetMessageW(&msg, nullptr, 0, 0) > 0) { TranslateMessage(&msg); DispatchMessageW(&msg); }

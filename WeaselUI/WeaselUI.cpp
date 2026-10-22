@@ -40,6 +40,7 @@ void UIImpl::Show() {
   if (!panel.IsWindow())
     return;
   bool needsPaint = !shown || !panel.IsWindowVisible();
+  if (needsPaint) panel.ReloadPlacement();
   panel.ShowWindow(SW_SHOWNA);
   shown = true;
   if (needsPaint) panel.RedrawWindow();
@@ -159,6 +160,9 @@ void UI::Refresh() {
   if (pimpl_) {
     pimpl_->Refresh();
   }
+}
+void UI::SetPlacementPreferencesPath(const std::filesystem::path& path) {
+  if (pimpl_) pimpl_->panel.SetPlacementPath(path);
 }
 
 void UI::UpdateInputPosition(RECT const& rc) {

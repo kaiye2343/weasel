@@ -1,6 +1,7 @@
 #pragma once
 #include <WeaselIPCData.h>
 #include <WeaselUI.h>
+#include <WeaselSkin.h>
 #include <filesystem>
 #include "StandardLayout.h"
 #include "Layout.h"
@@ -66,6 +67,8 @@ class WeaselPanel
   void DoPaint(CDCHandle dc);
   bool GetIsReposition() { return m_istorepos; }
   void RedrawWindow();
+  void ReloadPlacement();
+  void SetPlacementPath(const std::filesystem::path& path) { m_placement_path = path; ReloadPlacement(); }
 
   static VOID CALLBACK OnTimer(_In_ HWND hwnd,
                                _In_ UINT uMsg,
@@ -113,6 +116,9 @@ class WeaselPanel
   void _TraceSkinState(const char* reason);
   void _TraceSkinState(const char* reason, const std::string& detail);
   CPoint m_skin_origin = CPoint(0, 0);
+  CandidatePlacement m_placement;
+  std::filesystem::path m_placement_path;
+  CRect m_caret_rect = CRect(0, 0, 0, 0);
   CSize m_skin_size = CSize(0, 0);
   std::vector<SkinImage> m_skin_config;
   std::vector<std::unique_ptr<Gdiplus::Bitmap>> m_skin_bitmaps;

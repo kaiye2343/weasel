@@ -8,6 +8,7 @@
 #include <dwrite_2.h>
 #include <memory>
 #include <functional>
+#include <filesystem>
 #include <WeaselUtility.h>
 
 namespace weasel {
@@ -53,6 +54,8 @@ class UI {
 
   // 重绘界面
   void Refresh();
+  // Explicit preview path isolates preview preferences from the installed user.
+  void SetPlacementPreferencesPath(const std::filesystem::path& path);
 
   // 置输入焦点位置（光标跟随时移动候选窗）但不重绘
   void UpdateInputPosition(RECT const& rc);

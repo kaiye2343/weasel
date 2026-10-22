@@ -3,6 +3,15 @@
 #include <filesystem>
 
 namespace weasel {
+// Local presentation preferences: deliberately outside the UIStyle IPC archive.
+struct CandidatePlacement {
+  int offset_x = 0, gap = 6, preference = 0; // auto / below / above
+  bool avoid_decorations = true;
+};
+bool LoadCandidatePlacement(const std::filesystem::path& path,
+                            CandidatePlacement& placement, std::string& error);
+void TraceCandidatePresentation(const char* event, bool nativeAllowed,
+                                bool windowCreated, size_t images, HRESULT result);
 std::filesystem::path SkinDataRoot();
 bool LoadSkinManifest(const std::filesystem::path& manifest,
                       const std::string& variant, UIStyle& style,

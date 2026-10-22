@@ -213,4 +213,37 @@ bool LoadDisplayPreferences(const std::filesystem::path& path, UIStyle& style,
     style = std::move(next); error.clear(); return true;
   } catch (const std::exception& ex) { error = ex.what(); return false; }
 }
+bool LoadCandidatePlacement(const std::filesystem::path& path,
+                            CandidatePlacement& placement, std::string& error) {
+  try {
+    Object data = std::filesystem::exists(path) ? ReadObject(path) : Object{};
+    Number(data, "schemaVersion", 2, 1, 2);
+    CandidatePlacement next;
+    next.offset_x = Number(data, "candidateOffsetX", 0, -256, 256);
+    next.gap = Number(data, "candidateGap", 6, 0, 128);
+    auto position = data.if_contains("candidatePlacement") ? String(data, "candidatePlacement") : "auto";
+    if (position != "auto" && position != "below" && position != "above") throw std::runtime_error("Unknown candidate placement");
+    next.preference = position == "above" ? 2 : position == "below" ? 1 : 0;
+    next.avoid_decorations = data.if_contains("avoidDecorations") ? data.at("avoidDecorations").as_bool() : true;
+    placement = next; error.clear(); return true;
+  } catch (const std::exception& ex) { error = ex.what(); return false; }
+}
+void TraceCandidatePresentation(const char* event, bool nativeAllowed,
+                                bool windowCreated, size_t images, HRESULT result) {
+  try {
+    auto root = SkinDataRoot() / L"render-logs";
+    wchar_t overrideRoot[32768] = {};
+    if (GetEnvironmentVariableW(L"RIME_RENDER_LOG_ROOT", overrideRoot, 32768)) root = overrideRoot;
+    std::filesystem::create_directories(root);
+    auto path = root / (L"presentation-" + std::to_wstring(GetCurrentProcessId()) + L".log");
+    if (std::filesystem::exists(path) && std::filesystem::file_size(path) > 128 * 1024) {
+      std::filesystem::copy_file(path, path.wstring() + L".previous", std::filesystem::copy_options::overwrite_existing);
+      std::ofstream reset(path, std::ios::trunc);
+    }
+    std::ofstream stream(path, std::ios::app);
+    stream << GetTickCount64() << ' ' << event << " native_allowed=" << nativeAllowed
+           << " window_created=" << windowCreated << " requested_images=" << images
+           << " result=" << static_cast<long>(result) << '\n';
+  } catch (const std::exception&) { }
+}
 }
