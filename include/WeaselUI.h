@@ -91,6 +91,9 @@ class UI {
   Status status_;
   UIStyle style_;
   UIStyle ostyle_;
+  std::filesystem::path placement_preferences_path_;
+  RECT input_position_{};
+  bool has_input_position_ = false;
   std::function<void(size_t* const, size_t* const, bool* const, bool* const)>
       _UICallback;
 };

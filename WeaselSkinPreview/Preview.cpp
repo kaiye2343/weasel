@@ -297,18 +297,33 @@ static bool PlacementTests(HWND owner) {
   std::ofstream report("native-placement-test.log");
   UpdatePreview(owner);
   HWND panel = ui.GetCandidateWindow();
+  SetPropW(panel, L"Weasel.RenderProbe", reinterpret_cast<HANDLE>(1));
+  auto reads = reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.PlacementReads"));
   RECT expected{}; GetWindowRect(panel, &expected);
   bool stable = true;
   for (int i = 0; i < 30; ++i) {
-    ui.Refresh(); PumpPreview();
+    ui.Refresh(); ui.Show(); PumpPreview();
     RECT actual{}; GetWindowRect(panel, &actual);
     stable = stable && EqualRect(&expected, &actual);
   }
+  bool noKeyReads = reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.PlacementReads")) == reads;
+  POINT origin{70, 260}; ClientToScreen(owner, &origin);
+  RECT jitter{origin.x, origin.y + 2, origin.x + 150, origin.y + 26};
+  ui.UpdateInputPosition(jitter); ui.Refresh(); PumpPreview();
+  RECT jittered{}; GetWindowRect(panel, &jittered);
+  stable = stable && EqualRect(&expected, &jittered);
+  auto originalStyle = ui.style();
+  ui.style().margin_x = -10;
+  ui.Refresh();
+  for (int i = 0; i < 10; ++i) { ui.Show(); ui.Refresh(); }
+  noKeyReads = noKeyReads && reinterpret_cast<ULONG_PTR>(GetPropW(panel, L"Weasel.PlacementReads")) == reads;
+  ui.style() = originalStyle; ui.Refresh();
   // Hiding/showing reloads only local appearance preferences, not the caret.
   ui.Hide(); ui.Show(); PumpPreview();
   RECT reshown{}; GetWindowRect(panel, &reshown);
   stable = stable && EqualRect(&expected, &reshown);
   report << "refresh_and_reshow_preserve_caret_anchor=" << stable << '\n';
+  report << "visible_and_internally_hidden_updates_do_not_read_preferences=" << noKeyReads << '\n';
   weasel::CandidatePlacement value;
   std::string error;
   auto path = std::filesystem::temp_directory_path() / (L"RimePlacement-" + std::to_wstring(GetCurrentProcessId()) + L".json");
@@ -320,7 +335,13 @@ static bool PlacementTests(HWND owner) {
   report << "placement_parse_and_failure_preserve_previous=" << (parsed && preserved) << '\n';
   weasel::TraceCandidatePresentation("host_selected", false, false, 3, S_OK);
   weasel::TraceCandidatePresentation("native_selected", true, true, 3, S_OK);
-  return stable && parsed && preserved && report.good();
+  RECT originalCaret{origin.x, origin.y, origin.x + 150, origin.y + 24};
+  ui.UpdateInputPosition(originalCaret);
+  ui.Destroy(); ui.Create(owner); ui.Refresh(); ui.Show(); PumpPreview();
+  RECT recreated{}; GetWindowRect(ui.GetCandidateWindow(), &recreated);
+  bool recreation = EqualRect(&expected, &recreated);
+  report << "recreated_window_replays_source_caret_and_preview_path=" << recreation << '\n';
+  return stable && noKeyReads && parsed && preserved && recreation && report.good();
 }
 static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
   switch (message) {
@@ -393,6 +414,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   style.hilited_comment_text_color = 0xff997f61; style.hilited_candidate_back_color = 0xffffeedd;
   style.border_color = 0xffe9a94d; style.shadow_color = 0x30000000;
   style.hilite_spacing = 5; style.hilite_padding_x = 3; style.hilite_padding_y = 3; style.max_width = 800;
+  if (display_preferences.empty()) display_preferences = previewLogs / L"display.json";
+  ui.SetPlacementPreferencesPath(display_preferences);
   ui.Create(window);
   if (layout_test) {
     bool passed = LayoutTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 4;

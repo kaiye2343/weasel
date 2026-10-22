@@ -119,6 +119,7 @@ class WeaselPanel
   CandidatePlacement m_placement;
   std::filesystem::path m_placement_path;
   CRect m_caret_rect = CRect(0, 0, 0, 0);
+  bool m_has_caret = false;
   CSize m_skin_size = CSize(0, 0);
   std::vector<SkinImage> m_skin_config;
   std::vector<std::unique_ptr<Gdiplus::Bitmap>> m_skin_bitmaps;

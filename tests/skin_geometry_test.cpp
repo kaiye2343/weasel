@@ -36,6 +36,10 @@ int main() {
   // Reproduce the old placement bug: aligning the frame to the caret bottom
   // puts the top decoration across the composing line.
   SkinRect caret{200, 300, 350, 324}, work{0, 0, 1200, 900};
+  assert(ShouldUpdateCandidateAnchor(caret, caret, false));
+  assert(!ShouldUpdateCandidateAnchor(caret, {200, 302, 350, 326}, true));
+  assert(ShouldUpdateCandidateAnchor(caret, {200, 320, 350, 344}, true));
+  assert(ShouldUpdateCandidateAnchor(caret, {202, 300, 352, 324}, true));
   SkinRect textFrame{30, 80, 530, 130};
   std::vector<SkinRect> images{{0, 0, 80, 100}, {480, 0, 650, 170}};
   const int oldY = caret.bottom + 6 - textFrame.top;

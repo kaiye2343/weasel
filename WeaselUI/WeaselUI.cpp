@@ -40,7 +40,7 @@ void UIImpl::Show() {
   if (!panel.IsWindow())
     return;
   bool needsPaint = !shown || !panel.IsWindowVisible();
-  if (needsPaint) panel.ReloadPlacement();
+  if (!shown) panel.ReloadPlacement();
   panel.ShowWindow(SW_SHOWNA);
   shown = true;
   if (needsPaint) panel.RedrawWindow();
@@ -87,10 +87,13 @@ VOID CALLBACK UIImpl::OnTimer(_In_ HWND hwnd,
 
 bool UI::Create(HWND parent) {
   if (pimpl_) {
+    pimpl_->shown = false;
     pimpl_->panel.Create(
         parent, 0, 0, WS_POPUP,
         WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
         0U, 0);
+    pimpl_->panel.SetPlacementPath(placement_preferences_path_);
+    if (has_input_position_) pimpl_->panel.MoveTo(input_position_);
     return true;
   }
 
@@ -102,6 +105,8 @@ bool UI::Create(HWND parent) {
       parent, 0, 0, WS_POPUP,
       WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
       0U, 0);
+  pimpl_->panel.SetPlacementPath(placement_preferences_path_);
+  if (has_input_position_) pimpl_->panel.MoveTo(input_position_);
   return true;
 }
 
@@ -162,10 +167,12 @@ void UI::Refresh() {
   }
 }
 void UI::SetPlacementPreferencesPath(const std::filesystem::path& path) {
+  placement_preferences_path_ = path;
   if (pimpl_) pimpl_->panel.SetPlacementPath(path);
 }
 
 void UI::UpdateInputPosition(RECT const& rc) {
+  input_position_ = rc; has_input_position_ = true;
   if (pimpl_ && pimpl_->panel.IsWindow()) {
     pimpl_->panel.MoveTo(rc);
   }

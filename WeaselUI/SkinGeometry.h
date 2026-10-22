@@ -35,6 +35,13 @@ struct CandidateWindowPosition {
   int x, y;
   bool above, constrained;
 };
+inline bool ShouldUpdateCandidateAnchor(SkinRect previous, SkinRect next, bool hasPrevious) {
+  // Preserve the accepted source anchor across layout refreshes, not just the
+  // MoveTo call that received a host's 1-2 pixel vertical jitter.
+  return !hasPrevious || previous.left != next.left || previous.right != next.right ||
+      next.top - previous.top <= -6 || next.top - previous.top >= 6 ||
+      next.bottom - previous.bottom <= -6 || next.bottom - previous.bottom >= 6;
+}
 
 // All inputs are physical pixels. frame/images are relative to the window;
 // caret/work are screen coordinates. Never write adjusted coordinates to caret.

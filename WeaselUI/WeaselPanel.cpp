@@ -1635,6 +1635,7 @@ LRESULT WeaselPanel::OnDestroy(UINT uMsg,
   m_lastMousePos = {-1, -1};
   m_hasMousePos = false;
   m_sticky = false;
+  m_has_caret = false;
   delete m_layout;
   m_layout = NULL;
   delete m_bg_image;
@@ -1652,7 +1653,12 @@ LRESULT WeaselPanel::OnDpiChanged(UINT uMsg,
 }
 
 void WeaselPanel::MoveTo(RECT const& rc) {
-  m_caret_rect = rc;
+  if (ShouldUpdateCandidateAnchor(
+      {m_caret_rect.left, m_caret_rect.top, m_caret_rect.right, m_caret_rect.bottom},
+      {rc.left, rc.top, rc.right, rc.bottom}, m_has_caret)) {
+    m_caret_rect = rc;
+    m_has_caret = true;
+  }
   if (!m_layout)
     return;  // avoid handling nullptr in _RepositionWindow
   m_redraw_by_monitor_change = false;
@@ -1707,6 +1713,7 @@ void WeaselPanel::_RepositionWindow(const bool& adj) {
   if (m_style.layout_type == UIStyle::LAYOUT_HORIZONTAL &&
       m_status.composing && m_candidateCount && !hide_candidates &&
       rcWorkArea.right > rcWorkArea.left && rcWorkArea.bottom > rcWorkArea.top) {
+    if (!m_has_caret) return;
     CRect frame = m_layout->GetContentRect(); frame.OffsetRect(m_skin_origin);
     std::vector<SkinRect> images;
     for (auto image : m_skin_rects) {
@@ -1778,10 +1785,18 @@ void WeaselPanel::_RepositionWindow(const bool& adj) {
 }
 
 void WeaselPanel::ReloadPlacement() {
-  std::string error;
-  const auto path = m_placement_path.empty() ? SkinDataRoot() / L"display.json" : m_placement_path;
-  if (!LoadCandidatePlacement(path, m_placement, error))
+  try {
+    if (GetPropW(m_hWnd, L"Weasel.RenderProbe")) {
+      auto count = reinterpret_cast<ULONG_PTR>(GetPropW(m_hWnd, L"Weasel.PlacementReads"));
+      SetPropW(m_hWnd, L"Weasel.PlacementReads", reinterpret_cast<HANDLE>(count + 1));
+    }
+    std::string error;
+    const auto path = m_placement_path.empty() ? SkinDataRoot() / L"display.json" : m_placement_path;
+    if (!LoadCandidatePlacement(path, m_placement, error))
+      _TraceSkinState("placement_invalid_preserving_previous");
+  } catch (const std::exception&) {
     _TraceSkinState("placement_invalid_preserving_previous");
+  }
   if (m_layout && IsWindow()) _RepositionWindow();
 }
 
