@@ -8,13 +8,13 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
       # Read the full-build cache, but never save a partial header/container cache
       # under the full-build key if this standalone job encounters a cache miss.
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: boost
         with:
           path: ${{ github.workspace }}\deps\boost_1_84_0
@@ -52,7 +52,7 @@ jobs:
           }
           Get-ComputerInfo -Property WindowsProductName,WindowsVersion,CsProcessors | Format-List | Out-File .tools/frontend/environment.txt
           Get-ChildItem .tools/frontend -Recurse -File | Where-Object Extension -in '.exe','.csv' | Get-FileHash | Format-Table -AutoSize | Out-File .tools/frontend/hashes.txt -Width 240
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: frontend-comparison

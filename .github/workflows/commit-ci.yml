@@ -21,15 +21,16 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 60
     env:
+      VSLANG: '1033'
       boost_version: 1.84.0
       BOOST_ROOT: ${{ github.workspace }}\deps\boost_1_84_0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           fetch-depth: 0
-      - uses: microsoft/setup-msbuild@v2
-      - uses: actions/setup-node@v4
+      - uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
           cache: npm
@@ -41,13 +42,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Designer test dependency setup failed' }
           node tests/designer_test.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Designer package/geometry tests failed' }
+          node --test tests/native_diagnostics_test.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Native diagnostics parser tests failed' }
           Push-Location designer
           npx playwright install chromium
           if ($LASTEXITCODE -ne 0) { throw 'Headless Chromium setup failed' }
           Pop-Location
           node tests/designer_browser_test.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Offline browser regression failed' }
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
       - name: Test skin import, profiles and sync protocol
@@ -75,7 +78,7 @@ jobs:
       - name: Test repeated settings center launch
         shell: pwsh
         run: ./tools/test-settings-instance.ps1
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
       - name: Configure VS 2022
         shell: pwsh
         run: Copy-Item env.vs2022.bat env.bat
@@ -118,7 +121,7 @@ jobs:
           if errorlevel 1 exit /b 1
           .tools\render_backend_benchmark.exe skins\shorekeeper\shorekeeper-watermelon.png
           if errorlevel 1 exit /b 1
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: boost
         with:
           path: ${{ env.BOOST_ROOT }}
@@ -201,9 +204,9 @@ jobs:
       - name: Build native previews
         shell: pwsh
         run: |
-          msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$env:GITHUB_WORKSPACE\"
+          msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$env:GITHUB_WORKSPACE\" /fl '/flp:logfile=msbuild-preview-x64.log;verbosity=normal;encoding=UTF-8'
           if ($LASTEXITCODE -ne 0) { throw 'Native preview x64 build failed' }
-          msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=Win32 /p:SolutionDir="$env:GITHUB_WORKSPACE\"
+          msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=Win32 /p:SolutionDir="$env:GITHUB_WORKSPACE\" /fl '/flp:logfile=msbuild-preview-Win32.log;verbosity=normal;encoding=UTF-8'
           if ($LASTEXITCODE -ne 0) { throw 'Native preview Win32 build failed' }
       - name: Test isolated historical controls
         shell: pwsh
@@ -211,6 +214,9 @@ jobs:
       - name: Validate native PDB identity and symbol records
         shell: pwsh
         run: ./tools/test-native-symbols.ps1 -VerifyProduction
+      - name: Enforce native diagnostic baseline
+        shell: pwsh
+        run: ./tools/check-build-diagnostics.ps1
       - name: Validate native previews and prepare package contents
         # Negative controls run in isolated .tools/native-baseline-* snapshots and
         # never overwrite production sources or formal build outputs.
@@ -282,19 +288,22 @@ jobs:
             $relative = [IO.Path]::GetRelativePath($archiveRoot, $_.FullName).Replace('\', '/')
             "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)  $relative"
           } | Set-Content output/archives/SHA256SUMS.txt -Encoding utf8
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: shorekeeper-weasel-${{ github.sha }}
           path: output/archives/
           if-no-files-found: error
           retention-days: 14
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
           name: shorekeeper-failure-${{ github.sha }}
           include-hidden-files: true
           path: |
             msbuild*.log
+            output/archives/build-diagnostics.json
+            output/archives/build-diagnostics.md
+            .tools/native-diagnostics-inputs.json
             native-preferences-test.log
             native-publication-test.log
             native-placement-test.log
