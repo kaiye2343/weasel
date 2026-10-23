@@ -20,4 +20,21 @@ inline bool TryProtocolIndex(size_t index, DWORD& value) noexcept {
   return true;
 }
 
+inline bool TryProtocolSessionId(LPARAM input, DWORD& value) noexcept {
+  const ULONG_PTR raw = static_cast<ULONG_PTR>(input);
+  const DWORD low = static_cast<DWORD>(raw);
+  const ULONG_PTR mask =
+      static_cast<ULONG_PTR>((std::numeric_limits<DWORD>::max)());
+  if (raw <= mask) {
+    value = low;
+    return true;
+  }
+  if (sizeof(ULONG_PTR) > sizeof(DWORD) && (low & 0x80000000u) != 0 &&
+      raw == (static_cast<ULONG_PTR>(low) | ~mask)) {
+    value = low;
+    return true;
+  }
+  return false;
+}
+
 }  // namespace weasel

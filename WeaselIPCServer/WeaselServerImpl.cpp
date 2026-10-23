@@ -114,11 +114,13 @@ LRESULT ServerImpl::OnCommand(UINT uMsg,
   UINT uID = LOWORD(wParam);
   switch (uID) {
     case ID_WEASELTRAY_ENABLE_ASCII:
-      m_pRequestHandler->SetOption(lParam, "ascii_mode", true);
+    case ID_WEASELTRAY_DISABLE_ASCII: {
+      DWORD session = 0;
+      if (m_pRequestHandler && TryProtocolSessionId(lParam, session))
+        m_pRequestHandler->SetOption(
+            session, "ascii_mode", uID == ID_WEASELTRAY_ENABLE_ASCII);
       return 0;
-    case ID_WEASELTRAY_DISABLE_ASCII:
-      m_pRequestHandler->SetOption(lParam, "ascii_mode", false);
-      return 0;
+    }
     default:;
   }
 
@@ -432,7 +434,7 @@ void PipeServer::Listen(ServerHandler const& handler) {
       pipe = _ConnectServerPipe(pname);
       boost::thread th(
           [&handler, pipe, this] { _ProcessPipeThread(pipe, handler); });
-    } catch (DWORD ex) {
+    } catch (DWORD) {
       _FinalizePipe(pipe);
     }
     boost::this_thread::interruption_point();

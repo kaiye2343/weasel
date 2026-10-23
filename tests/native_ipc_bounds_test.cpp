@@ -101,6 +101,50 @@ static void TestConversions() {
   }
 }
 
+static void TestSessionIdConversions() {
+  const DWORD zero_extended[] = {0u, 0x7fffffffu, 0x80000000u, 0xffffffffu};
+  for (DWORD expected : zero_extended) {
+    const ULONG_PTR raw = static_cast<ULONG_PTR>(expected);
+    DWORD value = 0xDEADBEEFu;
+    Check(weasel::TryProtocolSessionId(static_cast<LPARAM>(raw), value),
+          "zero-extended session id accepted");
+    Check(value == expected, "zero-extended session id preserved");
+  }
+
+  if constexpr (sizeof(ULONG_PTR) > sizeof(DWORD)) {
+    const ULONG_PTR mask =
+        static_cast<ULONG_PTR>((std::numeric_limits<DWORD>::max)());
+    DWORD value = 0xDEADBEEFu;
+    Check(weasel::TryProtocolSessionId(static_cast<LPARAM>(-1), value),
+          "sign-extended -1 session id accepted");
+    Check(value == 0xffffffffu, "sign-extended -1 preserved");
+
+    value = 0xDEADBEEFu;
+    Check(weasel::TryProtocolSessionId(
+              static_cast<LPARAM>(-2147483647 - 1), value),
+          "sign-extended INT_MIN session id accepted");
+    Check(value == 0x80000000u, "sign-extended INT_MIN preserved");
+
+    volatile ULONG_PTR mask_runtime = mask;
+    const ULONG_PTR high = mask_runtime + 1;
+    const ULONG_PTR invalid_high = high | 1;
+    const ULONG_PTR invalid_sign = (~mask_runtime) | 1;
+
+    DWORD sentinel = 0xDEADBEEFu;
+    Check(!weasel::TryProtocolSessionId(
+              static_cast<LPARAM>(invalid_high), sentinel),
+          "non-sign-extended high id rejected");
+    Check(sentinel == 0xDEADBEEFu, "rejected high id keeps sentinel");
+
+    sentinel = 0xDEADBEEFu;
+    Check(!weasel::TryProtocolSessionId(
+              static_cast<LPARAM>(invalid_sign), sentinel),
+          "invalid sign extension rejected");
+    Check(sentinel == 0xDEADBEEFu,
+          "rejected sign extension keeps sentinel");
+  }
+}
+
 static void TestChannelBounds() {
   if constexpr (sizeof(size_t) > sizeof(DWORD)) {
     volatile size_t dword_max_runtime = (std::numeric_limits<DWORD>::max)();
@@ -250,6 +294,7 @@ static void TestEcho() {
 int main() {
   try {
     TestConversions();
+    TestSessionIdConversions();
     TestChannelBounds();
     TestSelectCandidate();
     TestHighlightCandidate();

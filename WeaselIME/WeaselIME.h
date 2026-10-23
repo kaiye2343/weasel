@@ -43,8 +43,8 @@ class WeaselIME {
   static void Cleanup();
 
   WeaselIME(HIMC hIMC);
-  LRESULT OnIMESelect(BOOL fSelect);
-  LRESULT OnIMEFocus(BOOL fFocus);
+  HRESULT OnIMESelect(BOOL fSelect);
+  HRESULT OnIMEFocus(BOOL fFocus);
   LRESULT OnUIMessage(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
   BOOL ProcessKeyEvent(UINT vKey, KeyInfo kinfo, const LPBYTE lpbKeyState);
 

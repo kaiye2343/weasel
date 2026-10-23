@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include <algorithm>
+#include <limits>
 #include <strsafe.h>
 #include <ResponseParser.h>
 #include <StringAlgorithm.hpp>
@@ -206,7 +207,7 @@ void WeaselIME::Cleanup() {
   s_instances.clear();
 }
 
-LRESULT WeaselIME::OnIMESelect(BOOL fSelect) {
+HRESULT WeaselIME::OnIMESelect(BOOL fSelect) {
   EZDBGONLYLOGGERPRINT("On IME select: %d, HIMC = 0x%x", fSelect, m_hIMC);
   ImmSetOpenStatus(m_hIMC, fSelect);
   if (fSelect) {
@@ -222,11 +223,11 @@ LRESULT WeaselIME::OnIMESelect(BOOL fSelect) {
   }
 }
 
-LRESULT WeaselIME::OnIMEFocus(BOOL fFocus) {
+HRESULT WeaselIME::OnIMEFocus(BOOL fFocus) {
   EZDBGONLYLOGGERPRINT("On IME focus: %d, HIMC = 0x%x", fFocus, m_hIMC);
   LPINPUTCONTEXT lpIMC = ImmLockIMC(m_hIMC);
   if (!lpIMC) {
-    return 0;
+    return S_OK;
   }
   if (fFocus) {
     if (!(lpIMC->fdwInit & INIT_COMPFORM)) {
@@ -241,7 +242,7 @@ LRESULT WeaselIME::OnIMEFocus(BOOL fFocus) {
   }
   ImmUnlockIMC(m_hIMC);
 
-  return 0;
+  return S_OK;
 }
 
 LRESULT WeaselIME::OnUIMessage(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp) {
@@ -467,8 +468,12 @@ HRESULT WeaselIME::_EndComposition(LPCWSTR composition) {
     }
 
     CompositionInfo* pInfo = (CompositionInfo*)lpCompStr;
+    static_assert(_countof(pInfo->szResultStr) <=
+                      (std::numeric_limits<DWORD>::max)(),
+                  "Composition buffer must fit DWORD");
     wcscpy_s(pInfo->szResultStr, composition);
-    lpCompStr->dwResultStrLen = wcslen(pInfo->szResultStr);
+    lpCompStr->dwResultStrLen =
+        static_cast<DWORD>(wcslen(pInfo->szResultStr));
 
     ImmUnlockIMCC(lpIMC->hCompStr);
     ImmUnlockIMC(m_hIMC);
