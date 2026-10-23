@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <string>
 #include <sstream>
+#include <ctime>
 #include <wrl/client.h>
 using namespace Microsoft::WRL;
 
@@ -276,7 +277,9 @@ inline std::string current_time() {
   auto now = system_clock::now();
   auto time_point = system_clock::to_time_t(now);
   auto ns = duration_cast<microseconds>(now.time_since_epoch());  // 转换为微秒
-  std::tm tm = *std::localtime(&time_point);
+  std::tm tm = {};
+  if (::localtime_s(&tm, &time_point) != 0)
+    return "time-unavailable";
   std::ostringstream oss;
   oss << std::put_time(&tm,
                        "%Y%m%d %H:%M:%S");  // 日期时间格式：20241113 08:54:34

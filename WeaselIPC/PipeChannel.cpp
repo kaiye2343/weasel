@@ -18,7 +18,9 @@ using namespace boost;
 PipeChannelBase::PipeChannelBase(std::wstring&& pn_cmd,
                                  size_t bs = 4 * 1024,
                                  SECURITY_ATTRIBUTES* s = NULL)
-    : pname(pn_cmd), buff_size(bs), sa(s) {};
+    : pname(pn_cmd), buff_size(bs), sa(s) {
+  CheckedPipeSize(buff_size);
+}
 
 PipeChannelBase::~PipeChannelBase() {
   // Thread-specific pointers are cleaned up automatically
@@ -69,8 +71,9 @@ HANDLE PipeChannelBase::_TryConnect() {
 }
 
 size_t PipeChannelBase::_WritePipe(HANDLE pipe, size_t s, char* b) {
+  const DWORD write_size = CheckedPipeSize(s);
   DWORD lwritten;
-  if (!::WriteFile(pipe, b, s, &lwritten, NULL) || lwritten <= 0) {
+  if (!::WriteFile(pipe, b, write_size, &lwritten, NULL) || lwritten <= 0) {
     _ThrowLastError;
   }
   ::FlushFileBuffers(pipe);
@@ -86,14 +89,16 @@ void PipeChannelBase::_FinalizePipe(HANDLE& p) {
 }
 
 void PipeChannelBase::_Receive(HANDLE pipe, LPVOID msg, size_t rec_len) {
+  const DWORD receive_size = CheckedPipeSize(rec_len);
   DWORD lread;
-  BOOL success = ::ReadFile(pipe, msg, rec_len, &lread, NULL);
+  BOOL success = ::ReadFile(pipe, msg, receive_size, &lread, NULL);
   if (!success) {
     _ThrowIfNot(ERROR_MORE_DATA);
 
     auto ctx = _GetContext();
     memset(ctx->buffer.get(), 0, buff_size);
-    success = ::ReadFile(pipe, ctx->buffer.get(), buff_size, &lread, NULL);
+    success = ::ReadFile(pipe, ctx->buffer.get(), CheckedPipeSize(buff_size),
+                         &lread, NULL);
     if (!success) {
       _ThrowLastError;
     }
@@ -102,10 +107,11 @@ void PipeChannelBase::_Receive(HANDLE pipe, LPVOID msg, size_t rec_len) {
 }
 
 HANDLE PipeChannelBase::_ConnectServerPipe(std::wstring& pn) {
+  const DWORD buffer_size = CheckedPipeSize(buff_size);
   HANDLE pipe =
       CreateNamedPipe(pn.c_str(), PIPE_ACCESS_DUPLEX,
                       PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
-                      PIPE_UNLIMITED_INSTANCES, buff_size, buff_size, 0, sa);
+                      PIPE_UNLIMITED_INSTANCES, buffer_size, buffer_size, 0, sa);
   if (pipe == INVALID_HANDLE_VALUE || !::ConnectNamedPipe(pipe, NULL)) {
     _ThrowLastError;
   }

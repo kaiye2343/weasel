@@ -35,7 +35,7 @@ class ClientImpl {
   void _InitializeClientInfo();
   bool _WriteClientInfo();
 
-  LRESULT _SendMessage(WEASEL_IPC_COMMAND Msg, DWORD wParam, DWORD lParam);
+  DWORD _SendMessage(WEASEL_IPC_COMMAND Msg, DWORD wParam, DWORD lParam);
 
   bool _Connected() const { return channel.Connected(); }
   bool _Active() const { return channel.Connected() && session_id != 0; }

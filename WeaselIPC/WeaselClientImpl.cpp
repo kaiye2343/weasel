@@ -59,7 +59,7 @@ bool ClientImpl::ProcessKeyEvent(KeyEvent const& keyEvent) {
   if (!_Active())
     return false;
 
-  LRESULT ret =
+  DWORD ret =
       _SendMessage(WEASEL_IPC_PROCESS_KEY_EVENT, keyEvent, session_id);
   return ret != 0;
 }
@@ -68,7 +68,7 @@ bool ClientImpl::CommitComposition() {
   if (!_Active())
     return false;
 
-  LRESULT ret = _SendMessage(WEASEL_IPC_COMMIT_COMPOSITION, 0, session_id);
+  DWORD ret = _SendMessage(WEASEL_IPC_COMMIT_COMPOSITION, 0, session_id);
   return ret != 0;
 }
 
@@ -76,30 +76,32 @@ bool ClientImpl::ClearComposition() {
   if (!_Active())
     return false;
 
-  LRESULT ret = _SendMessage(WEASEL_IPC_CLEAR_COMPOSITION, 0, session_id);
+  DWORD ret = _SendMessage(WEASEL_IPC_CLEAR_COMPOSITION, 0, session_id);
   return ret != 0;
 }
 
 bool ClientImpl::SelectCandidateOnCurrentPage(size_t index) {
-  if (!_Active())
+  DWORD candidate_index = 0;
+  if (!_Active() || !TryProtocolIndex(index, candidate_index))
     return false;
-  LRESULT ret = _SendMessage(WEASEL_IPC_SELECT_CANDIDATE_ON_CURRENT_PAGE, index,
-                             session_id);
+  DWORD ret = _SendMessage(WEASEL_IPC_SELECT_CANDIDATE_ON_CURRENT_PAGE,
+                           candidate_index, session_id);
   return ret != 0;
 }
 
 bool ClientImpl::HighlightCandidateOnCurrentPage(size_t index) {
-  if (!_Active())
+  DWORD candidate_index = 0;
+  if (!_Active() || !TryProtocolIndex(index, candidate_index))
     return false;
-  LRESULT ret = _SendMessage(WEASEL_IPC_HIGHLIGHT_CANDIDATE_ON_CURRENT_PAGE,
-                             index, session_id);
+  DWORD ret = _SendMessage(WEASEL_IPC_HIGHLIGHT_CANDIDATE_ON_CURRENT_PAGE,
+                           candidate_index, session_id);
   return ret != 0;
 }
 
 bool ClientImpl::ChangePage(bool backward) {
   if (!_Active())
     return false;
-  LRESULT ret = _SendMessage(WEASEL_IPC_CHANGE_PAGE, backward, session_id);
+  DWORD ret = _SendMessage(WEASEL_IPC_CHANGE_PAGE, backward, session_id);
   return ret != 0;
 }
 
@@ -200,9 +202,9 @@ bool ClientImpl::_WriteClientInfo() {
   return true;
 }
 
-LRESULT ClientImpl::_SendMessage(WEASEL_IPC_COMMAND Msg,
-                                 DWORD wParam,
-                                 DWORD lParam) {
+DWORD ClientImpl::_SendMessage(WEASEL_IPC_COMMAND Msg,
+                               DWORD wParam,
+                               DWORD lParam) {
   try {
     PipeMessage req{Msg, wParam, lParam};
     return channel.Transact(req);

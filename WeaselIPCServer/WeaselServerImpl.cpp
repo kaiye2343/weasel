@@ -165,7 +165,7 @@ int ServerImpl::Start() {
 
   HWND hwnd = Create(NULL);
 
-  return (int)hwnd;
+  return hwnd != NULL ? 1 : 0;
 }
 
 int ServerImpl::Stop() {
@@ -375,7 +375,7 @@ DWORD ServerImpl::OnChangePage(WEASEL_IPC_COMMAND uMsg,
   {                                                    \
     auto lParam = __lParam;                            \
     auto wParam = __wParam;                            \
-    LRESULT _result = 0;                               \
+    DWORD _result = 0;                                 \
     switch (__msg) {
 #define PIPE_MSG_HANDLE(__msg, __func)       \
   case __msg:                                \

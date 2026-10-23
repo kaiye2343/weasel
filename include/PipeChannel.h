@@ -2,6 +2,7 @@
 #include <string>
 #include <memory>
 #include <windows.h>
+#include <WeaselIPCConversions.h>
 #include <boost/interprocess/streams/bufferstream.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/tss.hpp>
@@ -85,6 +86,11 @@ class PipeChannel : public PipeChannelBase {
   using UPtr = std::unique_ptr<PipeChannel>;
   using Msg = _TyMsg;
   using Res = _TyRes;
+
+  static_assert(_MsgSize <= (std::numeric_limits<DWORD>::max)(),
+                "message size must fit DWORD");
+  static_assert(_ResSize <= (std::numeric_limits<DWORD>::max)(),
+                "response size must fit DWORD");
 
   enum class ChannalCommand { NEW_MSG_PIPE, REFRESH };
 
