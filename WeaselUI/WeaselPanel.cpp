@@ -1462,7 +1462,9 @@ void WeaselPanel::_TraceSkinState(const char* reason, const std::string& detail)
           std::all_of(name.begin(), name.begin() + 64, [](wchar_t c) {
             return (c >= L'0' && c <= L'9') || (c >= L'a' && c <= L'f');
           })) {
-        stream << " asset=" << std::string(name.begin(), name.begin() + 64);
+        stream << " asset=";
+        for (auto it = name.begin(); it != name.begin() + 64; ++it)
+          stream << static_cast<char>(*it);  // Validated ASCII hex above.
       }
     }
     stream << '\n';

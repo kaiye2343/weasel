@@ -2,6 +2,7 @@
 #include "SwitcherSettingsDialog.h"
 #include "Configurator.h"
 #include <algorithm>
+#include <limits>
 #include <set>
 #include <rime_levers_api.h>
 #include <WeaselUtility.h>
@@ -21,8 +22,10 @@ void SwitcherSettingsDialog::Populate() {
   api_->get_available_schema_list(settings_, &available);
   RimeSchemaList selected = {0};
   api_->get_selected_schema_list(settings_, &selected);
+  if (available.size > static_cast<size_t>((std::numeric_limits<int>::max)()))
+    return;
   schema_list_.DeleteAllItems();
-  size_t k = 0;
+  int k = 0;
   std::set<RimeSchemaInfo*> recruited;
   for (size_t i = 0; i < selected.size; ++i) {
     const char* schema_id = selected.list[i].schema_id;

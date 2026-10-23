@@ -3,6 +3,7 @@
 #include "UIStyleSettings.h"
 #include "Configurator.h"
 #include <WeaselUtility.h>
+#include <limits>
 
 UIStyleSettingsDialog::UIStyleSettingsDialog(UIStyleSettings* settings)
     : settings_(settings), loaded_(false) {}
@@ -17,11 +18,13 @@ void UIStyleSettingsDialog::Populate() {
   std::string active(settings_->GetActiveColorScheme());
   int active_index = -1;
   settings_->GetPresetColorSchemes(&preset_);
+  if (preset_.size() > static_cast<size_t>((std::numeric_limits<int>::max)()))
+    return;
   for (size_t i = 0; i < preset_.size(); ++i) {
     std::wstring txt = u8tow(preset_[i].name);
     color_schemes_.AddString(txt.c_str());
     if (preset_[i].color_scheme_id == active) {
-      active_index = i;
+      active_index = static_cast<int>(i);
     }
   }
   if (active_index >= 0) {
