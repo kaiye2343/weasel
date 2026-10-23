@@ -5,6 +5,7 @@ on:
 jobs:
 
   update_appcast:
+    if: github.repository == 'rime/weasel'
 
     runs-on: windows-2019
 

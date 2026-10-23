@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [shorekeeper]
+    paths-ignore:
+      - '**/*.md'
   pull_request:
     branches: [shorekeeper]
 

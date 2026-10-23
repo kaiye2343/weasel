@@ -1,12 +1,6 @@
 name: Official frontend comparison
 on:
   workflow_dispatch:
-  push:
-    branches: [shorekeeper]
-    paths:
-      - .github/workflows/frontend-comparison.yml
-      - tools/build-frontend-comparison.ps1
-      - tests/frontend_comparison_benchmark.cpp
 permissions:
   contents: read
 jobs:
