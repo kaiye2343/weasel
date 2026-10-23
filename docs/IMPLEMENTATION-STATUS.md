@@ -9,6 +9,7 @@
 - 各项目的编译 PDB 和链接 PDB 改为独立名称，Release 保留完整调试信息并关闭增量链接。已核对十个项目的唯一导入和 XML；尚无实际符号验证或连续两次干净构建证据，不能宣称已修复 `LNK4020` 根因。对应 `225cde6`。
 - 符号验证的 PE32／PE32+ CodeView 身份读取器和合成负例已加入 CI，覆盖边界、GUID／age、多记录一致性及截断 RSDS；代码经过审查，未在本机编译，完整 DIA 层尚未实施。对应 `49cc75a`。
 - GitHub 拒绝启动工作流，返回 HTTP 422“Actions has been disabled for this repository”，但查询到仓库开关已启用、工作流为 active。原因待核对；新的原生编译、NSIS、容器回归和符号验证均保持待验收。未安装、未重启日常服务、未修改用户 Rime 数据。
+- 用户完成页面处理后，`9ccadc6` 的 [39932503952](https://github.com/kaiye2343/weasel/actions/runs/39932503952) 已启动，Actions 阻塞解除。上游发布／Appcast 的整个 job 限官方仓库，性能对比改手动，Markdown-only 推送跳过完整构建；PR 检查保留。新 run 通过真实容器资源回归及 x64 启动／时间、IPC、生命周期、PE 解析夹具，停在快照精确 blob 检查；已确认并修复归档受 runner 换行设置影响的问题，本地 CRLF 环境回归通过。完整生产编译及 NSIS 仍待后续 run，不将本次记录视为阶段 A 全部通过。
 
 ## 最新进展（2026-10-22）
 

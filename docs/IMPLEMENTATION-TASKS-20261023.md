@@ -51,6 +51,8 @@
 
 已完成 YAML／PowerShell／MSBuild XML 静态检查、无窗口快照隔离测试及直接复用生产打包辅助函数的组件变更拒绝检查（文件修改、新增、删除和配置宏缺失／空值）。本机无 C++ 工具链；新增原生夹具、符号产物、实际 NSIS 打包及两次干净 CI 不列为通过。在门槛恢复前不开始依赖阶段 A 通过的 C／D／E 实施，也不安装实验版。
 
+后续更新：触发治理提交 `9ccadc6` 已产生 [完整构建 39932503952](https://github.com/kaiye2343/weasel/actions/runs/39932503952)，确认 Actions 恢复。x64 的启动／时间、IPC 边界、生命周期和 PE CodeView 夹具均编译并运行通过；随后快照隔离测试因 `git archive` 随 runner 的 `core.autocrlf=true` 改写换行而失败。已用单文件归档对照复现，并对归档命令单独指定 `core.autocrlf=false / core.eol=lf`；模拟 CRLF 环境下完整无窗口快照测试通过。未放宽原有 blob 哈希断言，正式原生构建和安装打包仍须新 CI 验收。
+
 ## Fork 工作流触发治理（2026-10-23）
 
 - 用户完成 GitHub 页面核查后报告可能恢复；实际恢复以新 run 成功创建为准，不将此前 HTTP 422 的账号层原因认定为已确认。

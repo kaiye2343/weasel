@@ -134,7 +134,8 @@ function New-NativeControlTree {
   }
 
   $archivePath = Join-Path $baselineRoot ("source-{0}.zip" -f [guid]::NewGuid().ToString('N'))
-  & git -C $projectRootFull archive --format=zip "--output=$archivePath" $SourceCommit | Out-Null
+  # Archive exact committed bytes, independent of the runner's checkout policy.
+  & git -C $projectRootFull -c core.autocrlf=false -c core.eol=lf archive --format=zip "--output=$archivePath" $SourceCommit | Out-Null
   if ($LASTEXITCODE -ne 0) {
     throw "git archive failed for SourceCommit $SourceCommit"
   }
