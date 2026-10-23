@@ -147,6 +147,15 @@ jobs:
           foreach ($file in @('include/rime_api.h', 'include/rime_levers_api.h', 'lib/rime.lib', 'lib64/rime.lib', 'output/rime.dll', 'output/Win32/rime.dll')) {
             if (!(Test-Path -LiteralPath $file) -or (Get-Item -LiteralPath $file).Length -eq 0) { throw "SDK download incomplete: $file" }
           }
+      - name: Test native timing, IPC bounds and control tree isolation
+        shell: pwsh
+        run: |
+          ./tools/test-native-start-time.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Native start/time regression failed' }
+          ./tools/test-native-ipc-bounds.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Native IPC bounds regression failed' }
+          pwsh -NoProfile -File tests/native_control_tree_test.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Native control tree isolation test failed' }
       - name: Build dictionaries
         shell: cmd
         run: |
@@ -164,19 +173,27 @@ jobs:
         env:
           WEASEL_SKIP_INSTALLER: '1'
         run: |
-          call build.bat installer
+          call build.bat rebuild installer
           if errorlevel 1 exit /b 1
-      - name: Package skin samples and provenance
-        # Negative tests compile the old algorithms, require their exact failure codes,
-        # then restore and rebuild the repaired algorithms before packaging.
+      - name: Build native previews
+        shell: pwsh
+        run: |
+          msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$env:GITHUB_WORKSPACE\"
+          if ($LASTEXITCODE -ne 0) { throw 'Native preview x64 build failed' }
+          msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=Win32 /p:SolutionDir="$env:GITHUB_WORKSPACE\"
+          if ($LASTEXITCODE -ne 0) { throw 'Native preview Win32 build failed' }
+      - name: Test isolated historical controls
+        shell: pwsh
+        run: ./tools/test-native-regressions.ps1
+      - name: Validate native previews and prepare package contents
+        # Negative controls run in isolated .tools/native-baseline-* snapshots and
+        # never overwrite production sources or formal build outputs.
         shell: pwsh
         run: |
           ./tools/test-deployer-cli.ps1 -VerifyPackage
           foreach ($file in @('output/WeaselServer.exe', 'output/WeaselDeployer.exe', 'output/weasel.dll', 'output/weaselx64.dll', 'output/Win32/WeaselServer.exe')) {
             if (!(Test-Path -LiteralPath $file)) { throw "Missing component: $file" }
           }
-          msbuild WeaselSkinPreview/WeaselSkinPreview.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$env:GITHUB_WORKSPACE\"
-          if ($LASTEXITCODE -ne 0) { throw 'Native preview build failed' }
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--publication-test' -WindowStyle Hidden -PassThru
           if (!$test.WaitForExit(60000)) { $test.Kill(); throw 'Native style publication test timed out' }
           Get-Content native-publication-test.log
@@ -189,7 +206,6 @@ jobs:
             if ($test.ExitCode -ne 0) { throw 'Native caret placement regression failed' }
             Copy-Item native-placement-test.log "output/archives/placement-$($sample[0]).log"
           }
-          ./tools/test-native-regressions.ps1
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--layout-test' -WindowStyle Hidden -PassThru -Wait
           if ($test.ExitCode -ne 0) { throw "Native annotation/DPI layout tests failed: $($test.ExitCode)" }
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--preferences-test' -WindowStyle Hidden -PassThru -Wait
@@ -219,9 +235,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Offline designer packaging failed' }
           Copy-Item render-backend-benchmark.csv output/archives/
           Copy-Item .tools/designer-browser/designer.png output/archives/designer-browser.png
-          $env:WEASEL_SETTINGS_CENTER_DEFINE = '/DRIME_SETTINGS_CENTER_PACKAGE=1'
-          cmd /c build.bat installer
-          if ($LASTEXITCODE -ne 0) { throw 'Complete settings center installer failed' }
+          ./tools/package-installer.ps1
           $installers = @(Get-ChildItem output/archives -Filter 'weasel*.exe')
           if ($installers.Count -eq 0) { throw 'Build produced no installer' }
           ./tools/pack-skin.ps1
@@ -266,6 +280,10 @@ jobs:
             .tools/native-learning/
             .tools/settings-smoke/skins/ui-smoke-error.txt
             .tools/native-baseline-*/native-*-test.log
+            .tools/native-baseline-*/**/native-*-test.log
+            .tools/native-baseline-*/**/control-build.log
+            .tools/native-start-time-*/**
+            .tools/native-ipc-bounds-*/**
             .tools/upstream-ipc-*/*/*.log
             .tools/deployer-cli-*/*.log
             .tools/deployer-cli-*/real-rime/*.log
