@@ -154,6 +154,7 @@
   <ItemGroup>
     <Image Include="WeaselSetup.ico" />
   </ItemGroup>
+  <Import Project="..\build\NativeSymbols.targets" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
