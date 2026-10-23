@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "Register.h"
 #include <strsafe.h>
+#include <limits>
 #include <WeaselUtility.h>
 
 #define CLSID_STRLEN 38  // strlen("{xxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxx}")
@@ -65,8 +66,11 @@ BOOL RegisterProfiles() {
   hansEnable = hansEnable || (!hantEnable && !hansEnable);
 
   const auto text_service_desc = get_weasel_ime_name();
+  if (text_service_desc.size() > (std::numeric_limits<ULONG>::max)())
+    return FALSE;
   const WCHAR* text_service_desc_str = text_service_desc.c_str();
-  ULONG text_service_desc_len = text_service_desc.size() * sizeof(wchar_t);
+  const ULONG text_service_desc_len =
+      static_cast<ULONG>(text_service_desc.size());
 
   WCHAR achIconFile[MAX_PATH];
   ULONG cchIconFile =
@@ -231,9 +235,19 @@ BOOL RegisterServer() {
       }
 #endif
 
-      fRet &= RegSetValueExA(hSubKey, NULL, 0, REG_SZ, (BYTE*)achFileName,
-                             (strlen(achFileName) + 1) * sizeof(char)) ==
-              ERROR_SUCCESS;
+      const size_t module_name_length =
+          strnlen_s(achFileName, ARRAYSIZE(achFileName));
+      static_assert(ARRAYSIZE(achFileName) <=
+                        (std::numeric_limits<DWORD>::max)(),
+                    "Module path must fit DWORD");
+      if (module_name_length == ARRAYSIZE(achFileName)) {
+        fRet = FALSE;
+      } else {
+        fRet &= RegSetValueExA(
+                    hSubKey, NULL, 0, REG_SZ, (BYTE*)achFileName,
+                    static_cast<DWORD>(module_name_length + 1)) ==
+                ERROR_SUCCESS;
+      }
       fRet &= RegSetValueExA(hSubKey, c_szModelName, 0, REG_SZ,
                              (BYTE*)TEXTSERVICE_MODEL,
                              sizeof TEXTSERVICE_MODEL) == ERROR_SUCCESS;

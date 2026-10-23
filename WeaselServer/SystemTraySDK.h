@@ -190,10 +190,10 @@ protected:
 
 // message map functions
 public:
-	LRESULT OnTimer(UINT nIDEvent);
+	LRESULT OnTimer(UINT_PTR nIDEvent);
     LRESULT OnTaskbarCreated(WPARAM wParam, LPARAM lParam);
 #ifndef _WIN32_WCE
-	LRESULT OnSettingChange(UINT uFlags, LPCTSTR lpszSection);
+	LRESULT OnSettingChange(WPARAM uFlags, LPCTSTR lpszSection);
 #endif
 };
 

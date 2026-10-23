@@ -720,7 +720,7 @@ BEGIN_MESSAGE_MAP(CSystemTray, CWnd)
 END_MESSAGE_MAP()
 */
 
-LRESULT CSystemTray::OnTimer(UINT nIDEvent) {
+LRESULT CSystemTray::OnTimer(UINT_PTR nIDEvent) {
   if (nIDEvent != m_uIDTimer) {
     ASSERT(FALSE);
     return 0L;
@@ -749,7 +749,7 @@ LRESULT CSystemTray::OnTaskbarCreated(WPARAM wParam, LPARAM lParam) {
 }
 
 #ifndef _WIN32_WCE
-LRESULT CSystemTray::OnSettingChange(UINT uFlags, LPCTSTR lpszSection) {
+LRESULT CSystemTray::OnSettingChange(WPARAM uFlags, LPCTSTR lpszSection) {
   if (uFlags == SPI_SETWORKAREA)
     InstallIconPending();
   return 0L;
