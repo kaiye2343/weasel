@@ -29,10 +29,12 @@ inline bool TryProtocolSessionId(LPARAM input, DWORD& value) noexcept {
     value = low;
     return true;
   }
-  if (sizeof(ULONG_PTR) > sizeof(DWORD) && (low & 0x80000000u) != 0 &&
-      raw == (static_cast<ULONG_PTR>(low) | ~mask)) {
-    value = low;
-    return true;
+  if constexpr (sizeof(ULONG_PTR) > sizeof(DWORD)) {
+    if ((low & 0x80000000u) != 0 &&
+        raw == (static_cast<ULONG_PTR>(low) | ~mask)) {
+      value = low;
+      return true;
+    }
   }
   return false;
 }
