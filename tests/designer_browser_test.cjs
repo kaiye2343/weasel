@@ -15,6 +15,7 @@ const valid=path.join(out,"valid.rimeskin");fs.writeFileSync(valid,P.packageByte
  await page.goto(pathToFileURL(path.join(root,"designer/index.html")).href);await page.locator("#canvas").waitFor();
  await check("editor stays inside viewport",async()=>assert.equal(await page.evaluate(()=>document.documentElement.scrollHeight<=innerHeight),true));
  await check("file URL works offline",async()=>{assert.equal(await page.title(),"Rime · 皮肤设计器");assert.equal(errors.length,0);});
+ await check("default preference source is explicit and offline",async()=>{assert.equal(await page.locator("#preview-source").textContent(),"偏好来源：内置默认值");assert.match(await page.locator("#preview-note").textContent(),/未连接输入法/);});
  const annotated=await page.evaluate(()=>geometry.height);
  await page.locator('[data-mode="plain"]').click();const plain=await page.evaluate(()=>geometry.height);
  await check("plain preview collapses",()=>assert.ok(plain<annotated));
@@ -63,10 +64,28 @@ const valid=path.join(out,"valid.rimeskin");fs.writeFileSync(valid,P.packageByte
  const demoDownload=page.waitForEvent("download");await page.locator("#export-project").click();await(await demoDownload).saveAs(path.join(out,"demo-export.rimeskin"));
  const savedStyle=await page.evaluate(()=>JSON.stringify(current().style));
  await page.locator("#display-preview").selectOption("skin");
- await check("raw preview uses package font",async()=>assert.equal(await page.evaluate(()=>geometry.font),await page.evaluate(()=>current().style.fontPoint*4/3)));
- const preferencesFile=path.join(out,"display-preview.json");fs.writeFileSync(preferencesFile,JSON.stringify({schemaVersion:2,annotationEnabled:true,annotationPosition:"above",emptyAnnotationMode:"reserve",fontMode:"user",fontPoint:12,commentFontPoint:10,density:"compact"}));
+ await check("raw preview uses package font and source",async()=>{assert.equal(await page.evaluate(()=>geometry.font),await page.evaluate(()=>current().style.fontPoint*4/3));assert.equal(await page.locator("#preview-source").textContent(),"参数来源：皮肤原始参数");});
+ const preferencesFile=path.join(out,"display-preview.json");fs.writeFileSync(preferencesFile,JSON.stringify({schemaVersion:2,annotationEnabled:true,annotationPosition:"above",emptyAnnotationMode:"reserve",fontMode:"user",fontPoint:18,commentFontPoint:11,density:"compact"}));
  await page.locator("#display-file").setInputFiles(preferencesFile);await page.waitForFunction(()=>document.querySelector("#status").textContent.startsWith("已载入个人显示偏好"));
- await check("personal display preview uses native defaults without changing package",async()=>{assert.equal(await page.evaluate(()=>geometry.font),16);assert.equal(await page.evaluate(()=>JSON.stringify(current().style)),savedStyle);});
+ await check("imported preferences are named without changing package",async()=>{assert.equal(await page.evaluate(()=>geometry.font),24);assert.equal(await page.evaluate(()=>JSON.stringify(current().style)),savedStyle);assert.equal(await page.locator("#preview-source").textContent(),"偏好来源：已导入：display-preview.json");});
+ await page.locator("#variants button").nth(1).click();await page.waitForFunction(()=>current().id==="night");
+ await page.locator("#layers .layer").first().click();await page.locator("#display-preview").selectOption("skin");
+ const previewState=()=>page.evaluate(()=>JSON.stringify({manifest,variant,selected,preferences:displayPreferences,source:displayPreferencesSource,profile:document.querySelector("#display-preview").value,geometry,assetNames:[...images.keys()]}));
+ const previousPreview=await previewState();
+ for(const [name,contents,message] of [["broken.json","{",/不是有效的 JSON/],["invalid.json",JSON.stringify({annotationPosition:"below"}),/格式无效/],["oversized.json"," ".repeat(65537),/64 KiB/]]){
+  await page.locator("#display-file").setInputFiles({name,mimeType:"application/json",buffer:Buffer.from(contents)});
+  await page.waitForFunction(()=>!busy);
+  await check("failed preference import preserves full preview: "+name,async()=>{assert.match(await page.locator("#status").textContent(),message);assert.equal(await previewState(),previousPreview);assert.equal(await page.locator("#export-project").isEnabled(),true);});
+ }
+ await page.locator("#display-preview").selectOption("user");
+ await check("mode switching retains imported preference source",async()=>assert.equal(await page.locator("#preview-source").textContent(),"偏好来源：已导入：display-preview.json"));
+ await page.locator("#variants button").first().click();await page.waitForFunction(()=>current().id==="light");
+ const stableExport=async name=>{const event=page.waitForEvent("download");await page.locator("#export-project").click();const target=path.join(out,name);await(await event).saveAs(target);return fs.readFileSync(target);};
+ await check("preference import leaves all exported bytes unchanged including preview PNG",async()=>assert.deepEqual(await stableExport("demo-user-preview.rimeskin"),fs.readFileSync(path.join(out,"demo-export.rimeskin"))));
+ await page.locator("#display-preview").selectOption("skin");await page.locator("#sample").selectOption("long");await page.locator("#zoom").selectOption("2");await page.locator("#highlight").selectOption("5");await page.locator('[data-mode="plain"]').click();
+ const beforeExport=await previewState();
+ await check("export uses stable package preview and restores current view",async()=>{assert.deepEqual(await stableExport("demo-raw-preview.rimeskin"),fs.readFileSync(path.join(out,"demo-export.rimeskin")));assert.equal(await previewState(),beforeExport);assert.equal(await page.locator("#sample").inputValue(),"long");assert.equal(await page.locator("#zoom").inputValue(),"2");assert.equal(await page.locator("#highlight").inputValue(),"5");assert.equal(await page.locator('[data-mode="plain"]').getAttribute("class"),"active");});
+ await page.locator("#sample").selectOption("short");await page.locator("#highlight").selectOption("1");await page.locator('[data-mode="annotated"]').click();
  const legacyDir=path.join(root,"skins/shorekeeper"),legacyManifest=JSON.parse(fs.readFileSync(path.join(legacyDir,"manifest.json"),"utf8"));
  const legacyAssets=new Map(fs.readdirSync(legacyDir).filter(n=>n.endsWith(".png")).map(n=>[n,new Uint8Array(fs.readFileSync(path.join(legacyDir,n)))]));
  const legacyFile=path.join(out,"legacy-shorekeeper.rimeskin");fs.writeFileSync(legacyFile,P.packageBytes(legacyManifest,legacyAssets));

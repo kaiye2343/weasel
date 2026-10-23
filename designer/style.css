@@ -4,3 +4,4 @@
 .library,.editor,.properties{min-height:0}.workspace{grid-template-rows:minmax(0,1fr)}
 
 .preview-tools{flex-wrap:wrap;height:auto;min-height:57px;padding:10px 0;gap:12px}.preview-tools>button{font-size:11px;padding:5px 8px}
+.editor-notes p{overflow-wrap:anywhere}
