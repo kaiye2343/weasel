@@ -51,7 +51,11 @@ int expand_ibus_modifier(int m) {
 static void CleanOldLogs() {
   char ymd[12] = {0};
   time_t now = time(NULL);
-  strftime(ymd, sizeof(ymd), ".%Y%m%d", localtime(&now));
+  std::tm local = {};
+  if (::localtime_s(&local, &now) != 0)
+    return;
+  if (strftime(ymd, sizeof(ymd), ".%Y%m%d", &local) == 0)
+    return;
   std::string today(ymd);
   const std::string app_name = "rime.weasel";
   std::string dir = WeaselLogPath().string();

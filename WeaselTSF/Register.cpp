@@ -13,27 +13,30 @@ static const char c_szModelName[] = "ThreadingModel";
 HKL FindIME(LANGID langid) {
   HKL hKL = NULL;
   WCHAR key[9];
-  HKEY hKey;
+  HKEY hKey = NULL;
   LSTATUS ret =
       RegOpenKeyExW(HKEY_LOCAL_MACHINE,
                     L"SYSTEM\\CurrentControlSet\\Control\\Keyboard Layouts", 0,
                     KEY_READ, &hKey);
-  if (ret == ERROR_SUCCESS) {
-    for (DWORD id = (0xE0200000 | langid);
-         hKL == NULL && id <= (0xE0FF0000 | langid); id += 0x10000) {
-      StringCchPrintfW(key, _countof(key), L"%08X", id);
-      HKEY hSubKey;
-      ret = RegOpenKeyExW(hKey, key, 0, KEY_READ, &hSubKey);
-      if (ret == ERROR_SUCCESS) {
-        WCHAR data[32];
-        DWORD type;
-        DWORD size = sizeof data;
-        ret = RegQueryValueExW(hSubKey, L"Ime File", NULL, &type, (LPBYTE)data,
-                               &size);
-        if (ret == ERROR_SUCCESS && type == REG_SZ &&
-            _wcsicmp(data, L"weasel.ime") == 0)
-          hKL = (HKL)id;
-      }
+  if (ret != ERROR_SUCCESS)
+    return NULL;
+  for (DWORD id = (0xE0200000 | langid);
+       hKL == NULL && id <= (0xE0FF0000 | langid); id += 0x10000) {
+    StringCchPrintfW(key, _countof(key), L"%08X", id);
+    HKEY hSubKey = NULL;
+    ret = RegOpenKeyExW(hKey, key, 0, KEY_READ, &hSubKey);
+    if (ret == ERROR_SUCCESS) {
+      WCHAR data[32] = {0};
+      DWORD type = 0;
+      DWORD size = sizeof data;
+      ret = RegQueryValueExW(hSubKey, L"Ime File", NULL, &type, (LPBYTE)data,
+                             &size);
+      if (ret == ERROR_SUCCESS && type == REG_SZ &&
+          size >= sizeof(wchar_t) && size <= sizeof(data) &&
+          size % sizeof(wchar_t) == 0 &&
+          data[size / sizeof(wchar_t) - 1] == L'\0' &&
+          _wcsicmp(data, L"weasel.ime") == 0)
+        hKL = reinterpret_cast<HKL>(static_cast<ULONG_PTR>(id));
       RegCloseKey(hSubKey);
     }
   }

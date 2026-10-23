@@ -7,22 +7,18 @@
 
 void static OpenFolderAndSelectItem(std::wstring filepath) {
   filepath = std::filesystem::path(filepath).make_preferred().wstring();
-  std::wstring directory = std::filesystem::path(filepath).parent_path();
 
-  HRESULT hr;
-  hr = CoInitializeEx(0, COINIT_MULTITHREADED);
+  const HRESULT hr = ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+  if (FAILED(hr) && hr != RPC_E_CHANGED_MODE)
+    return;
 
-  ITEMIDLIST* folder = ILCreateFromPath(directory.c_str());
-  std::vector<LPITEMIDLIST> v;
-  v.push_back(ILCreateFromPath(filepath.c_str()));
-
-  SHOpenFolderAndSelectItems(folder, v.size(), (LPCITEMIDLIST*)v.data(), 0);
-
-  for (auto idl : v) {
-    ILFree(idl);
+  auto item = ::ILCreateFromPathW(filepath.c_str());
+  if (item) {
+    ::SHOpenFolderAndSelectItems(item, 0, nullptr, 0);
+    ::ILFree(item);
   }
-  ILFree(folder);
-  CoUninitialize();
+  if (SUCCEEDED(hr))
+    ::CoUninitialize();
 }
 
 template <typename T, typename U>
@@ -33,27 +29,33 @@ inline static std::wstring DoFileDialog(HWND hwndOwner,
                                         LPCWSTR filename,
                                         LPCWSTR defExt) {
   std::wstring path;
-  CoInitialize(NULL);
-  CComPtr<T> spFileDialog;
-  if (SUCCEEDED(spFileDialog.CoCreateInstance(__uuidof(U)))) {
-    spFileDialog->SetFileTypes(filterSize, filter);
-    spFileDialog->SetTitle(title);
-    if (filename)
-      spFileDialog->SetFileName(filename);
+  const HRESULT hr = ::CoInitialize(nullptr);
+  if (FAILED(hr) && hr != RPC_E_CHANGED_MODE)
+    return path;
 
-    spFileDialog->SetDefaultExtension(defExt);
-    if (SUCCEEDED(spFileDialog->Show(hwndOwner))) {
-      CComPtr<IShellItem> spResult;
-      if (SUCCEEDED(spFileDialog->GetResult(&spResult))) {
-        wchar_t* name;
-        if (SUCCEEDED(spResult->GetDisplayName(SIGDN_FILESYSPATH, &name))) {
-          path = name;
-          CoTaskMemFree(name);
+  {
+    CComPtr<T> spFileDialog;
+    if (SUCCEEDED(spFileDialog.CoCreateInstance(__uuidof(U)))) {
+      spFileDialog->SetFileTypes(filterSize, filter);
+      spFileDialog->SetTitle(title);
+      if (filename)
+        spFileDialog->SetFileName(filename);
+
+      spFileDialog->SetDefaultExtension(defExt);
+      if (SUCCEEDED(spFileDialog->Show(hwndOwner))) {
+        CComPtr<IShellItem> spResult;
+        if (SUCCEEDED(spFileDialog->GetResult(&spResult))) {
+          wchar_t* name;
+          if (SUCCEEDED(spResult->GetDisplayName(SIGDN_FILESYSPATH, &name))) {
+            path = name;
+            CoTaskMemFree(name);
+          }
         }
       }
     }
   }
-  CoUninitialize();
+  if (SUCCEEDED(hr))
+    ::CoUninitialize();
   return path;
 }
 

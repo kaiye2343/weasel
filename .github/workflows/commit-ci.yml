@@ -154,6 +154,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Native start/time regression failed' }
           ./tools/test-native-ipc-bounds.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Native IPC bounds regression failed' }
+          ./tools/test-native-lifetimes.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Native lifetime regression failed' }
           pwsh -NoProfile -File tests/native_control_tree_test.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Native control tree isolation test failed' }
       - name: Build dictionaries
@@ -284,6 +286,7 @@ jobs:
             .tools/native-baseline-*/**/control-build.log
             .tools/native-start-time-*/**
             .tools/native-ipc-bounds-*/**
+            .tools/native-lifetimes-*/**
             .tools/upstream-ipc-*/*/*.log
             .tools/deployer-cli-*/*.log
             .tools/deployer-cli-*/real-rime/*.log
