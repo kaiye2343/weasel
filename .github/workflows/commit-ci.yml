@@ -158,10 +158,27 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Native IPC bounds regression failed' }
           ./tools/test-native-lifetimes.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Native lifetime regression failed' }
+          ./tools/test-native-profile-contracts.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Native profile contract regression failed' }
           ./tools/test-symbol-parser.ps1
           if ($LASTEXITCODE -ne 0) { throw 'PE CodeView parser regression failed' }
           pwsh -NoProfile -File tests/native_control_tree_test.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Native control tree isolation test failed' }
+      - name: Test Win32 native contracts
+        shell: cmd
+        run: |
+          call "%VSINSTALLDIR%VC\Auxiliary\Build\vcvarsall.bat" x86
+          if errorlevel 1 exit /b 1
+          pwsh -NoProfile -File tools/test-native-start-time.ps1
+          if errorlevel 1 exit /b 1
+          pwsh -NoProfile -File tools/test-native-ipc-bounds.ps1
+          if errorlevel 1 exit /b 1
+          pwsh -NoProfile -File tools/test-native-lifetimes.ps1
+          if errorlevel 1 exit /b 1
+          pwsh -NoProfile -File tools/test-native-profile-contracts.ps1
+          if errorlevel 1 exit /b 1
+          pwsh -NoProfile -File tools/test-symbol-parser.ps1
+          if errorlevel 1 exit /b 1
       - name: Build dictionaries
         shell: cmd
         run: |
@@ -191,6 +208,9 @@ jobs:
       - name: Test isolated historical controls
         shell: pwsh
         run: ./tools/test-native-regressions.ps1
+      - name: Validate native PDB identity and symbol records
+        shell: pwsh
+        run: ./tools/test-native-symbols.ps1 -VerifyProduction
       - name: Validate native previews and prepare package contents
         # Negative controls run in isolated .tools/native-baseline-* snapshots and
         # never overwrite production sources or formal build outputs.
@@ -291,6 +311,8 @@ jobs:
             .tools/native-start-time-*/**
             .tools/native-ipc-bounds-*/**
             .tools/native-lifetimes-*/**
+            .tools/native-profile-contracts-*/**
+            .tools/native-symbols-*/**
             .tools/symbol-parser-*/**
             .tools/upstream-ipc-*/*/*.log
             .tools/deployer-cli-*/*.log
