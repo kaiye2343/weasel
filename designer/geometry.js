@@ -30,6 +30,8 @@ function layout(style,layers,candidates,annotations,measure,options={}){
  return {width,height,left,top,right,bottom,cells,layers:rects,hasAnnotation:has,above,commentHeight,rowTop,font,comment,gap};
 }
 function fit(rect,image){const scale=Math.min(rect.width/image.width,rect.height/image.height),width=Math.floor(image.width*scale),height=Math.floor(image.height*scale);return {x:rect.left+(rect.width-width)/2,y:rect.top+rect.height-height,width,height};}
+// Editor-only highlight selection. Native word selection also depends on its
+// measured rectangles, highlight padding, skin origin and mouse event state.
 function hit(g,x,y){return g.cells.findIndex(c=>x>=c.x&&x<=c.x+c.width&&y>=g.rowTop&&y<=g.rowTop+c.height);}
 const api={layout,fit,hit,preferences,effective};if(typeof module!=="undefined")module.exports=api;else root.SkinGeometry=api;
 })(globalThis);

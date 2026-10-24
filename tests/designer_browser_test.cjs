@@ -16,6 +16,7 @@ const valid=path.join(out,"valid.rimeskin");fs.writeFileSync(valid,P.packageByte
  await check("editor stays inside viewport",async()=>assert.equal(await page.evaluate(()=>document.documentElement.scrollHeight<=innerHeight),true));
  await check("file URL works offline",async()=>{assert.equal(await page.title(),"Rime · 皮肤设计器");assert.equal(errors.length,0);});
  await check("default preference source is explicit and offline",async()=>{assert.equal(await page.locator("#preview-source").textContent(),"偏好来源：内置默认值");assert.match(await page.locator("#preview-note").textContent(),/未连接输入法/);});
+ await check("editor selection is distinguished from native word selection",async()=>assert.match(await page.locator("#editor-hit-note").textContent(),/仅切换预览高亮/));
  const annotated=await page.evaluate(()=>geometry.height);
  await page.locator('[data-mode="plain"]').click();const plain=await page.evaluate(()=>geometry.height);
  await check("plain preview collapses",()=>assert.ok(plain<annotated));

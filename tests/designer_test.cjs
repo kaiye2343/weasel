@@ -38,6 +38,7 @@ const m=P.newManifest(),assets=new Map([["preview.png",preview]]);
  check("canvas includes decorations",()=>{assert.equal(g.left,-30);assert.equal(g.top,-50);assert.equal(g.right,g.width+130);});
  check("decoration is outside candidate hit region",()=>assert.equal(G.hit(g,g.width+20,0),-1));
  check("candidate hit agrees with cell",()=>assert.equal(G.hit(g,g.cells[1].x+1,g.rowTop+1),1));
+ check("editor highlight selection keeps its own boundary contract",()=>{const c=g.cells[0];assert.equal(G.hit(g,c.x+c.width,g.rowTop+1),0);assert.equal(G.hit(g,c.x+1,g.rowTop+c.height),0);});
  check("fit preserves ratio bottom alignment",()=>assert.deepEqual(G.fit({left:0,top:0,width:100,height:100},{width:200,height:100}),{x:0,y:50,width:100,height:50}));
  // Independent standard Deflate encoding exercises the browser/native archive compatibility.
  const deflateZip=require("./designer_zip_fixture.cjs");
