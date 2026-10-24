@@ -18,6 +18,9 @@
 #include <vector>
 #include <stdexcept>
 #include <type_traits>
+#ifdef WEASEL_RESPONSE_FAULT_DIAGNOSTICS
+#include "native_fault_report.h"
+#endif
 
 using namespace weasel;
 using WeaselSessionId = DWORD;
@@ -150,6 +153,10 @@ static void OptionalCursor() {
   }
 }
 int main() try {
+#ifdef WEASEL_RESPONSE_FAULT_DIAGNOSTICS
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+  SetUnhandledExceptionFilter(ReportNativeFault);
+#endif
   std::fputs("[response-phase] comparisons\n", stderr);
   Comparisons();
   std::fputs("[response-phase] optional cursor\n", stderr);

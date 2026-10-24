@@ -350,6 +350,9 @@ jobs:
             .tools/symbol-parser-*/**
             .tools/upstream-ipc-*/*/*.log
             .tools/upstream-adaptations-*/**/*.log
+            .tools/upstream-adaptations-*/**/*.exe
+            .tools/upstream-adaptations-*/**/*.pdb
+            .tools/upstream-adaptations-*/**/*.inc
             .tools/deployer-cli-*/*.log
             .tools/deployer-cli-*/real-rime/*.log
             .tools/skin-publication/**/**.log

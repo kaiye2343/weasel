@@ -41,20 +41,34 @@ function CheckExe([string]$exe, [int]$expected = 0) {
   Get-Content -LiteralPath $errorLog
   if ($process.ExitCode -ne $expected) { throw "$exe expected $expected, got $($process.ExitCode)" }
 }
-function CompileResponse([string]$name, [string]$source, [bool]$legacy) {
+function CompileResponse([string]$name, [string]$source, [bool]$legacy, [bool]$diagnostic = $false) {
   $directory = Join-Path $scratch $name
   New-Item -ItemType Directory -Path $directory | Out-Null
   [IO.File]::WriteAllText((Join-Path $directory 'response_under_test.inc'), (ResponseSource $source), $utf8)
   $flags = @('/nologo', '/EHsc', '/std:c++17', '/utf-8', '/MT', '/DUNICODE', '/D_UNICODE', '/DBOOST_USE_WINAPI_VERSION=0x0603', "/I$directory", "/I$project/include", "/I$env:BOOST_ROOT", '/Y-')
   if ($legacy) { $flags += '/DLEGACY_RESPONSE' }
+  if ($diagnostic) { $flags += @('/Zi', '/Bv', '/DWEASEL_RESPONSE_FAULT_DIAGNOSTICS', "/Fd$directory/response-compile.pdb") }
   $sources = @('tests/upstream_response_test.cpp', 'WeaselIPC/ResponseParser.cpp', 'WeaselIPC/Deserializer.cpp', 'WeaselIPC/ActionLoader.cpp', 'WeaselIPC/Committer.cpp', 'WeaselIPC/ContextUpdater.cpp', 'WeaselIPC/Configurator.cpp', 'WeaselIPC/Styler.cpp')
   $exe = Join-Path $directory 'response.exe'
-  & cl @flags @sources "/Fo$directory/" "/Fe:$exe" /link "/LIBPATH:$env:BOOST_ROOT/stage/lib" advapi32.lib user32.lib
+  $linkFlags = @("/LIBPATH:$env:BOOST_ROOT/stage/lib", 'advapi32.lib', 'user32.lib')
+  if ($diagnostic) { $linkFlags += @('/DEBUG:FULL', "/PDB:$directory/response.pdb", 'dbghelp.lib') }
+  @{ sourceRevision = (git -C $project rev-parse HEAD); compiler = (Get-Command cl).Source;
+     architecture = $env:VSCMD_ARG_TGT_ARCH; flags = $flags; sources = $sources; linkFlags = $linkFlags } |
+    ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $directory 'build-command.log') -Encoding utf8
+  & cl @flags @sources "/Fo$directory/" "/Fe:$exe" /link @linkFlags
   if ($LASTEXITCODE -ne 0) { throw "Response fixture compilation failed: $name" }
   CheckExe $exe
 }
 $responsePath = Join-Path $project 'RimeWithWeasel/RimeWithWeasel.cpp'
-CompileResponse 'current' ([IO.File]::ReadAllText($responsePath)) $false
+try {
+  CompileResponse 'current' ([IO.File]::ReadAllText($responsePath)) $false
+} catch {
+  $originalFailure = $_
+  Write-Output 'Original response fixture failed; collecting an isolated symbolized reproduction without changing optimization or runtime.'
+  try { CompileResponse 'current-symbols' ([IO.File]::ReadAllText($responsePath)) $false $true }
+  catch { Write-Output "Symbolized reproduction: $_" }
+  throw $originalFailure
+}
 # The same client expectations must also pass on the pre-optimization responder.
 $baseline = git -C $project show 'c8c3332^:RimeWithWeasel/RimeWithWeasel.cpp'
 if ($LASTEXITCODE -ne 0) { throw 'Missing response baseline in Git history' }
