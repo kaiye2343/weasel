@@ -6,6 +6,7 @@
 #include <ResponseParser.h>
 #include <StringAlgorithm.hpp>
 #include <WeaselUtility.h>
+#include <WeaselPerformance.h>
 #include <boost/archive/text_woarchive.hpp>
 #include <cstring>
 #include <functional>
@@ -149,6 +150,13 @@ static void OptionalCursor() {
 }
 int main() try {
   Comparisons(); OptionalCursor(); ConfigureApi();
+#ifndef LEGACY_RESPONSE
+  performance::Options probeOptions;
+  probeOptions.scenarioId = "synthetic.response";
+  probeOptions.available[static_cast<size_t>(performance::Stage::ContextResponse)] = true;
+  std::string probeError;
+  Check(performance::processProbe.Start(probeOptions, probeError), "response timing probe starts");
+#endif
   input.data_size = sizeof(input) - sizeof(input.data_size);
   inputStatus.data_size = sizeof(inputStatus) - sizeof(inputStatus.data_size);
   inputStatus.schema_id = const_cast<char*>("wanxiang_work");
@@ -241,6 +249,14 @@ int main() try {
   Result fallback = Respond(empty);
   Check(fallback.context.preedit.str == u8tow(composition) &&
         fallback.context.cinfo.empty(), "preview fallback without candidates");
+#ifndef LEGACY_RESPONSE
+  performance::Report probeReport;
+  Check(performance::processProbe.Finish(probeReport, probeError), "response timing probe finishes");
+  Check(probeReport.stages[static_cast<size_t>(performance::Stage::ContextResponse)].samples == 15,
+        "real response hook records successful, empty and failed callback attempts");
+  Check(!probeReport.stages[static_cast<size_t>(performance::Stage::CoreProcessKey)].available,
+        "fake response fixture does not claim core computation timing");
+#endif
   std::cout << "PASS response/parser: modes, Unicode, escaping, candidates, style, failure, release; const comparisons\n";
   return 0;
 } catch (const std::exception& e) {

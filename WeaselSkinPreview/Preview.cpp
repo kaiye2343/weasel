@@ -5,6 +5,7 @@
 #include <wtl/atlmisc.h>
 #include <WeaselUI.h>
 #include <WeaselSkin.h>
+#include <WeaselPerformance.h>
 #include "../WeaselUI/HorizontalLayout.h"
 #include <shellapi.h>
 #include <ShellScalingApi.h>
@@ -25,6 +26,8 @@ static std::string variant;
 static std::filesystem::path overrides;
 static std::filesystem::path display_preferences;
 static int smoke_frames = 0;
+static unsigned probe_duration_seconds = 30;
+static std::string probe_revision = "unknown";
 static bool PublicationTests() {
   Gdiplus::GdiplusStartupInput input;
   ULONG_PTR gdip = 0;
@@ -76,6 +79,103 @@ static bool PublicationTests() {
   return passed;
 }
 static void PumpPreview() { MSG message; while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&message); DispatchMessageW(&message); } }
+static bool PerformanceProbeTests(HWND owner) {
+  // Isolated synthetic UI only: no Rime sessions, input events or user settings.
+  namespace perf = weasel::performance;
+  using Clock = std::chrono::steady_clock;
+  KillTimer(owner, 1);
+  const auto originalContext = context;
+  HWND panel = ui.GetCandidateWindow();
+  std::ofstream output("native-performance-probe-test.json", std::ios::binary);
+  output.imbue(std::locale::classic());
+  bool passed = false;
+  try {
+    if (!panel || context.cinfo.candies.size() < 2 || !output)
+      throw std::runtime_error("Probe fixture is unavailable");
+    UINT dpiX = 0, dpiY = 0;
+    if (FAILED(GetDpiForMonitor(MonitorFromWindow(panel, MONITOR_DEFAULTTONEAREST),
+                               MDT_EFFECTIVE_DPI, &dpiX, &dpiY)))
+      throw std::runtime_error("Cannot determine probe monitor DPI");
+    perf::Options options;
+    options.sourceRevision = probe_revision;
+    options.pid = GetCurrentProcessId();
+    options.backend = "gdi";
+    options.dpi = dpiX;
+    options.scenarioId = "native.preview.hot";
+    options.durationSeconds = probe_duration_seconds;
+    options.available[static_cast<size_t>(perf::Stage::Layout)] = true;
+    options.available[static_cast<size_t>(perf::Stage::ResourcePrepare)] = true;
+    options.available[static_cast<size_t>(perf::Stage::PaintSubmit)] = true;
+    ULONG_PTR referenceHash = 0;
+    SIZE referenceSize{};
+    output << "{\"schemaVersion\":1,\"runs\":[";
+    for (int group = 0; group < 3; ++group) for (int phase = 0; phase < 4; ++phase) {
+      const bool enabled = phase == 1 || phase == 2;
+      std::string error;
+      if (enabled && !perf::processProbe.Start(options, error))
+        throw std::runtime_error(error);
+      const auto start = Clock::now();
+      for (size_t frame = 0; frame < 200; ++frame) {
+        context.cinfo.highlighted = static_cast<int>((frame + 1) % context.cinfo.candies.size());
+        ui.Update(context, status);
+        PumpPreview();
+      }
+      const double elapsed = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+      perf::Report report;
+      if (enabled) {
+        if (!perf::processProbe.Enabled() || elapsed >= options.durationSeconds * 1000.0)
+          throw std::runtime_error("ABBA sampling interval expired before the trial completed");
+        if (!perf::processProbe.Finish(report, error)) throw std::runtime_error(error);
+        for (auto stage : {perf::Stage::Layout, perf::Stage::ResourcePrepare, perf::Stage::PaintSubmit})
+          if (!report.stages[static_cast<size_t>(stage)].samples)
+            throw std::runtime_error("A real preview timing hook did not run");
+        if (!report.counters[static_cast<size_t>(perf::Counter::FrameSubmit)])
+          throw std::runtime_error("No real frame was submitted");
+      } else if (perf::processProbe.Enabled()) {
+        throw std::runtime_error("Probe was unexpectedly enabled");
+      }
+      // Pixel hashing is deliberately outside both the timing and sampling interval.
+      if (!SetPropW(panel, L"Weasel.RenderProbe", reinterpret_cast<HANDLE>(1)))
+        throw std::runtime_error("Cannot enable synthetic pixel check");
+      ui.Hide(); ui.Show(); PumpPreview();
+      if (!GetPropW(panel, L"Weasel.RenderGeneration"))
+        throw std::runtime_error("No pixel check frame was drawn");
+      const HANDLE hashValue = GetPropW(panel, L"Weasel.RenderHash");
+      if (!hashValue) throw std::runtime_error("Cannot prove pixel equivalence without a frame hash");
+      const auto hash = reinterpret_cast<ULONG_PTR>(hashValue);
+      RECT bounds{};
+      if (!GetWindowRect(panel, &bounds)) throw std::runtime_error("Cannot read preview bounds");
+      const SIZE size{bounds.right - bounds.left, bounds.bottom - bounds.top};
+      if (!group && !phase) { referenceHash = hash; referenceSize = size; }
+      else if (hash != referenceHash || size.cx != referenceSize.cx || size.cy != referenceSize.cy)
+        throw std::runtime_error("Final synthetic redraws differ across trials");
+      RemovePropW(panel, L"Weasel.RenderProbe");
+      RemovePropW(panel, L"Weasel.RenderGeneration");
+      RemovePropW(panel, L"Weasel.RenderHash");
+      if (group || phase) output << ',';
+      output << "{\"group\":" << group + 1 << ",\"phase\":" << phase + 1
+             << ",\"mode\":\"" << (enabled ? "enabled" : "disabled")
+             << "\",\"frames\":200,\"wallMs\":" << elapsed << ",\"probe\":";
+      if (enabled) perf::WriteReport(output, report); else output << "null";
+      output << '}';
+    }
+    output << "],\"finalRedrawEquivalent\":true}\n";
+    output.close();
+    passed = output.good();
+    std::ofstream("native-performance-probe-test.log") << (passed ? "PASS" : "FAIL")
+        << " native hot-frame probe: three ABBA groups, equivalent post-sampling redraws, no Rime data\n";
+  } catch (const std::exception& error) {
+    std::ofstream("native-performance-probe-test.log") << "FAIL " << error.what() << '\n';
+    perf::Report discarded;
+    std::string ignored;
+    perf::processProbe.Finish(discarded, ignored);
+  }
+  RemovePropW(panel, L"Weasel.RenderProbe");
+  RemovePropW(panel, L"Weasel.RenderGeneration");
+  RemovePropW(panel, L"Weasel.RenderHash");
+  context = originalContext; ui.Update(context, status);
+  return passed;
+}
 static bool PerformanceTests(HWND owner) {
   // Synthetic data only: no Rime sessions, user dictionaries or input events.
   KillTimer(owner, 1);
@@ -444,6 +544,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   bool preference_test = count == 2 && !wcscmp(args[1], L"--preferences-test");
   bool redraw_test = count == 2 && !wcscmp(args[1], L"--redraw-test");
   bool performance_test = count == 2 && !wcscmp(args[1], L"--performance-test");
+  bool performance_probe_test = count == 2 && !wcscmp(args[1], L"--performance-probe-test");
+  bool invalid_probe_options = false;
+  bool probe_options_given = false;
+  if (count > 1 && (!wcscmp(args[count - 1], L"--probe-duration") ||
+                    !wcscmp(args[count - 1], L"--probe-revision"))) invalid_probe_options = true;
   bool placement_test = count == 2 && !wcscmp(args[1], L"--placement-test");
   for (int i = 1; i + 1 < count; i += 2) {
     if (!wcscmp(args[i], L"--manifest")) manifest = args[i + 1];
@@ -453,9 +558,30 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     if (!wcscmp(args[i], L"--smoke")) smoke_frames = 20;
     if (!wcscmp(args[i], L"--redraw-test")) redraw_test = true;
     if (!wcscmp(args[i], L"--performance-test")) performance_test = true;
+    if (!wcscmp(args[i], L"--performance-probe-test")) performance_probe_test = true;
+    if (!wcscmp(args[i], L"--probe-revision")) { probe_options_given = true; probe_revision = wtou8(args[i + 1]); }
+    if (!wcscmp(args[i], L"--probe-duration")) {
+      probe_options_given = true;
+      const std::wstring seconds = args[i + 1];
+      unsigned value = 0;
+      if (seconds.empty() || seconds.size() > 3) invalid_probe_options = true;
+      else for (wchar_t digit : seconds) {
+        if (digit < L'0' || digit > L'9') { invalid_probe_options = true; break; }
+        value = value * 10 + static_cast<unsigned>(digit - L'0');
+      }
+      if (value < 1 || value > 120) invalid_probe_options = true;
+      else probe_duration_seconds = value;
+    }
     if (!wcscmp(args[i], L"--placement-test")) placement_test = true;
   }
   LocalFree(args);
+  if (probe_revision != "unknown" && (probe_revision.size() != 40 ||
+      !std::all_of(probe_revision.begin(), probe_revision.end(), [](char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+      }))) invalid_probe_options = true;
+  if (invalid_probe_options || (probe_options_given && !performance_probe_test)) {
+    _Module.Term(); CoUninitialize(); return 2;
+  }
   WNDCLASSW cls{}; cls.hInstance = instance; cls.lpfnWndProc = WindowProc;
   cls.lpszClassName = L"ShorekeeperNativePreview"; cls.hCursor = LoadCursor(nullptr, IDC_ARROW);
   cls.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1); RegisterClassW(&cls);
@@ -502,6 +628,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   ShowWindow(window, show); UpdatePreview(window);
   if (placement_test) { bool passed = PlacementTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 8; }
   if (performance_test) { bool passed = PerformanceTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 7; }
+  if (performance_probe_test) { bool passed = PerformanceProbeTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 10; }
   if (redraw_test) { bool passed = RedrawTests(window); DestroyWindow(window); _Module.Term(); CoUninitialize(); return passed ? 0 : 6; }
   MSG msg; while (GetMessageW(&msg, nullptr, 0, 0) > 0) { TranslateMessage(&msg); DispatchMessageW(&msg); }
   _Module.Term(); CoUninitialize(); return 0;

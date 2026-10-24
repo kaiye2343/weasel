@@ -4,6 +4,7 @@
 #include <memory>
 #include <cstring>
 #include <cstddef>
+#include "../include/WeaselPerformance.h"
 
 namespace weasel {
 // Preserve the failing API's status before GDI+ resets it in GetLastStatus().
@@ -19,6 +20,8 @@ struct SkinImageLoadError {
 inline std::unique_ptr<Gdiplus::Bitmap> LoadSkinBitmap(
     const wchar_t* path, SkinImageLoadError& error) {
   error = {};
+  weasel::performance::processProbe.Add(
+      weasel::performance::Counter::Decode);
   auto fail = [&](const char* stage, Gdiplus::Status status) {
     error.stage = stage;
     error.status = status;
@@ -77,6 +80,11 @@ inline std::unique_ptr<Gdiplus::Bitmap> ScaleSkinBitmap(
     Gdiplus::Bitmap& source, int width, int height,
     Gdiplus::PixelOffsetMode offset = Gdiplus::PixelOffsetModeDefault) {
   if (width < 1 || height < 1 || width > 2048 || height > 2048) return {};
+  weasel::performance::Scope scaleProbe(
+      weasel::performance::processProbe,
+      weasel::performance::Stage::ResourcePrepare);
+  weasel::performance::processProbe.Add(
+      weasel::performance::Counter::Scale);
   std::unique_ptr<Gdiplus::Bitmap> bitmap;
   try { bitmap = std::make_unique<Gdiplus::Bitmap>(width, height, PixelFormat32bppPARGB); }
   catch (const std::bad_alloc&) { return {}; }

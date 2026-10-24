@@ -3,6 +3,7 @@
 #include "SkinGeometry.h"
 #include "SkinImageLoader.h"
 #include <WeaselSkin.h>
+#include <WeaselPerformance.h>
 #include <fstream>
 
 #include <utility>
@@ -127,8 +128,14 @@ void WeaselPanel::_ReleaseSkinImages() {
 }
 
 void WeaselPanel::_UpdateSkinGeometry() {
+  weasel::performance::Scope resourceProbe(
+      weasel::performance::processProbe,
+      weasel::performance::Stage::ResourcePrepare);
   const auto& frame = m_style.skin_frame_image.empty() ? m_style.background_image : m_style.skin_frame_image;
   std::error_code frameError;
+  if (!frame.empty())
+    weasel::performance::processProbe.Add(
+        weasel::performance::Counter::FileMetadata);
   const auto frameStamp = frame.empty() ? std::filesystem::file_time_type{} :
       std::filesystem::last_write_time(frame, frameError);
   if (frame != m_skin_frame_path || frameStamp != m_skin_frame_stamp) {
@@ -146,6 +153,8 @@ void WeaselPanel::_UpdateSkinGeometry() {
   std::vector<std::filesystem::file_time_type> stamps;
   for (const auto& image : m_style.skin_images) {
     std::error_code error;
+    weasel::performance::processProbe.Add(
+        weasel::performance::Counter::FileMetadata);
     stamps.push_back(std::filesystem::last_write_time(image.path, error));
   }
   if (m_skin_config != m_style.skin_images || stamps != m_skin_stamps) {
@@ -254,12 +263,17 @@ void WeaselPanel::Refresh() {
   // only RedrawWindow if no need to hide candidates window, or
   // inline_no_candidates
   if (!hide_candidates || inline_no_candidates) {
-    _InitFontRes();
-    _CreateLayout();
+    {
+      weasel::performance::Scope layoutProbe(
+          weasel::performance::processProbe,
+          weasel::performance::Stage::Layout);
+      _InitFontRes();
+      _CreateLayout();
 
-    CDCHandle dc = GetDC();
-    m_layout->DoLayout(dc, pDWR);
-    ReleaseDC(dc);
+      CDCHandle dc = GetDC();
+      m_layout->DoLayout(dc, pDWR);
+      ReleaseDC(dc);
+    }
     _ResizeWindow();
     _RepositionWindow();
     const bool geometryChanged = previousSize != m_skin_size || previousOrigin != m_skin_origin;
@@ -718,6 +732,9 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
     // 图已被释放（关窗后重开）或路径变了都必须重载——
     // 只比路径会把「图没了」误判成「已经加载过」。
     if (m_bg_image == NULL || m_bg_image_path != background || m_bg_image_stale) {
+      weasel::performance::Scope backgroundProbe(
+          weasel::performance::processProbe,
+          weasel::performance::Stage::ResourcePrepare);
       auto* previous = m_bg_image;
       const auto previousPath = m_bg_image_path;
       m_bg_image = NULL;
@@ -728,6 +745,8 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
         SkinImageLoadError error;
         src = LoadSkinBitmap(background.c_str(), error).release();
       } else {
+        weasel::performance::processProbe.Add(
+            weasel::performance::Counter::Decode);
         src = Gdiplus::Bitmap::FromFile(background.c_str());
       }
       if (src && src->GetLastStatus() == Gdiplus::Ok) {
@@ -739,6 +758,8 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
             (double)sw * sh > kBgImageMaxPixels) {
           double k = (double)kBgImageMaxSide / (double)(sw > sh ? sw : sh);
           UINT dw = (UINT)(sw * k), dh = (UINT)(sh * k);
+          weasel::performance::processProbe.Add(
+              weasel::performance::Counter::Scale);
           Gdiplus::Bitmap* scaled =
               new Gdiplus::Bitmap(dw, dh, PixelFormat32bppPARGB);
           if (scaled->GetLastStatus() == Gdiplus::Ok) {
@@ -1238,6 +1259,9 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
 
 // draw client area
 void WeaselPanel::DoPaint(CDCHandle dc) {
+  weasel::performance::Scope paintProbe(
+      weasel::performance::processProbe,
+      weasel::performance::Stage::PaintSubmit);
   // turn off WS_EX_TRANSPARENT, for better resp performance
   ModifyStyleEx(WS_EX_TRANSPARENT, WS_EX_LAYERED);
   GetClientRect(&rcw);
@@ -1318,6 +1342,8 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
     if (baseHit) {
       std::memcpy(pixels, m_skin_base_pixels.data(), baseBytes);
     } else {
+      weasel::performance::processProbe.Add(
+          weasel::performance::Counter::BackgroundRebuild);
       // Drop the previous size before allocating scaled images or a new base.
       std::vector<BYTE>().swap(m_skin_base_pixels);
       if (background)
@@ -1604,6 +1630,8 @@ void WeaselPanel::_LayerUpdate(const CRect& rc, CDCHandle dc) {
   BLENDFUNCTION bf = {AC_SRC_OVER, 0, 0XFF, AC_SRC_ALPHA};
   if (UpdateLayeredWindow(m_hWnd, ScreenDC, &WindowPosAtScreen, &sz, dc,
                           &PointOriginal, RGB(0, 0, 0), &bf, ULW_ALPHA)) {
+    weasel::performance::processProbe.Add(
+        weasel::performance::Counter::FrameSubmit);
     // Opt-in diagnostic probe: count successful frame submissions, not WM_PAINT.
     // RedrawWindow deliberately paints directly for applications which discard WM_PAINT.
     if (::GetPropW(m_hWnd, L"Weasel.RenderProbe")) {

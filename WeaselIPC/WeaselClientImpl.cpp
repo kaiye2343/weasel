@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "WeaselClientImpl.h"
 #include <StringAlgorithm.hpp>
+#include <WeaselPerformance.h>
 
 using namespace weasel;
 
@@ -206,6 +207,9 @@ DWORD ClientImpl::_SendMessage(WEASEL_IPC_COMMAND Msg,
                                DWORD wParam,
                                DWORD lParam) {
   try {
+    weasel::performance::Scope ipcProbe(
+        weasel::performance::processProbe,
+        weasel::performance::Stage::IpcRoundtrip);
     PipeMessage req{Msg, wParam, lParam};
     return channel.Transact(req);
   } catch (DWORD /* ex */) {

@@ -227,6 +227,7 @@ jobs:
         shell: pwsh
         run: |
           ./tools/test-deployer-cli.ps1 -VerifyPackage
+          ./tools/test-native-performance-preview.ps1
           foreach ($file in @('output/WeaselServer.exe', 'output/WeaselDeployer.exe', 'output/weasel.dll', 'output/weaselx64.dll', 'output/Win32/WeaselServer.exe')) {
             if (!(Test-Path -LiteralPath $file)) { throw "Missing component: $file" }
           }
@@ -314,6 +315,12 @@ jobs:
             native-layout-test.log
             native-redraw-test.log
             native-performance-test.csv
+            native-performance-probe-test.json
+            native-performance-probe-test.log
+            output/archives/performance-preview-*.json
+            output/archives/performance-preview-*.log
+            output/archives/performance-probe-overhead.csv
+            output/archives/performance-core-*.json
             render-backend-benchmark.csv
             .tools/designer-browser/
             .tools/native-learning/
@@ -325,9 +332,11 @@ jobs:
             .tools/native-ipc-bounds-*/**
             .tools/native-lifetimes-*/**
             .tools/native-profile-contracts-*/**
+            .tools/native-performance-probe-*/**
             .tools/native-symbols-*/**
             .tools/symbol-parser-*/**
             .tools/upstream-ipc-*/*/*.log
+            .tools/upstream-adaptations-*/**/*.log
             .tools/deployer-cli-*/*.log
             .tools/deployer-cli-*/real-rime/*.log
             .tools/skin-publication/**/**.log

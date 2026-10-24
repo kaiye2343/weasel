@@ -1,5 +1,6 @@
 #include "../include/WeaselSkinAssets.h"
 #include "SkinImageLoader.h"
+#include "../include/WeaselPerformance.h"
 
 #include <windows.h>
 #include <aclapi.h>
@@ -131,6 +132,8 @@ bool IsDigestName(const std::wstring& name, std::wstring* extension = nullptr) {
 
 bool ComputeSha256(const std::vector<BYTE>& data, std::array<BYTE, 32>& digest,
                    std::string& error) {
+  weasel::performance::processProbe.Add(
+      weasel::performance::Counter::DigestRead);
   BCRYPT_ALG_HANDLE raw_algorithm = nullptr;
   NTSTATUS status =
       BCryptOpenAlgorithmProvider(&raw_algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0);

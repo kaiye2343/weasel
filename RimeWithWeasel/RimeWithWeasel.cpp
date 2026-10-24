@@ -6,6 +6,7 @@
 #include <StringAlgorithm.hpp>
 #include <WeaselConstants.h>
 #include <WeaselUtility.h>
+#include <WeaselPerformance.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/json.hpp>
 #include <fstream>
@@ -351,8 +352,14 @@ BOOL RimeWithWeaselHandler::ProcessKeyEvent(KeyEvent keyEvent,
   if (m_disabled)
     return FALSE;
   RimeSessionId session_id = to_session_id(ipc_id);
-  Bool handled = rime_api->process_key(session_id, keyEvent.keycode,
-                                       expand_ibus_modifier(keyEvent.mask));
+  Bool handled;
+  {
+    weasel::performance::Scope coreProbe(
+        weasel::performance::processProbe,
+        weasel::performance::Stage::CoreProcessKey);
+    handled = rime_api->process_key(session_id, keyEvent.keycode,
+                                    expand_ibus_modifier(keyEvent.mask));
+  }
   // vim_mode when keydown only
   if (!handled && !(keyEvent.mask & ibus::Modifier::RELEASE_MASK)) {
     bool isVimBackInCommandMode =
@@ -984,6 +991,9 @@ inline std::string _GetLabelText(const std::vector<Text>& labels,
 }
 
 bool RimeWithWeaselHandler::_Respond(WeaselSessionId ipc_id, EatLine eat) {
+  weasel::performance::Scope responseProbe(
+      weasel::performance::processProbe,
+      weasel::performance::Stage::ContextResponse);
   std::wstring body;
   body.reserve(4096);
   std::vector<const char*> actions;
