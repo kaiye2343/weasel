@@ -2,7 +2,7 @@
 
 ## repair 后续批次（2026-10-24）
 
-原生事实输出与点击／松开／翻页夹具已按用户授权的 repair 指导实施，实际执行待完整 CI。它直接调用生产 `HorizontalLayout::DoLayout`，与下方网页供给框体的 D1a 不同。详见 [原生事实及事件范围](REPAIR-EXECUTION-20261024.md)。
+原生事实输出与点击／松开／翻页夹具已按用户授权的 repair 指导实施，[完整 CI 40106592815](https://github.com/kaiye2343/weasel/actions/runs/40106592815) 已通过两架构全部固定测量和事件检查。它直接调用生产 `HorizontalLayout::DoLayout`，与下方网页供给框体的 D1a 不同。详见 [原生事实及事件范围](REPAIR-EXECUTION-20261024.md)。
 
 - `tools/test-native-layout-facts.ps1`：使用已构建的两个架构预览程序；`--layout-facts` 在创建窗口前输出固定测量和真实字体报告，不连接输入法。
 - `output/archives/native-text-facts-*.json`：原始合成输入、原生文字／注音／高亮／命中矩形及 DPI／坐标转换。
@@ -63,7 +63,7 @@ node tests/shared_skin_anchor_fixture_test.cjs
 - 准备命中夹具时发现网页／原生命中契约差异，已另写[问题单](issues/2026-10-24-preview-hit-contract-difference.md)，停止相关修复尝试，未将命中比较记为通过。
 - 发现新问题时写 `docs/issues/` 问题单并停止相关修复尝试，由用户调用高级模型处理。
 
-## 尚未交付的 D1 后续部分
+## D1a 交付时未包含的后续部分（更新见顶部 repair 批次）
 
 - 原生文字布局读取同一份候选、注释、样式和固定测量输入。
 - 输出候选／序号／注音矩形、基线、分隔线和命中区域。
