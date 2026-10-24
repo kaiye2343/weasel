@@ -1,5 +1,14 @@
 # 网页与原生共享布局夹具
 
+## repair 后续批次（2026-10-24）
+
+原生事实输出与点击／松开／翻页夹具已按用户授权的 repair 指导实施，实际执行待完整 CI。它直接调用生产 `HorizontalLayout::DoLayout`，与下方网页供给框体的 D1a 不同。详见 [原生事实及事件范围](REPAIR-EXECUTION-20261024.md)。
+
+- `tools/test-native-layout-facts.ps1`：使用已构建的两个架构预览程序；`--layout-facts` 在创建窗口前输出固定测量和真实字体报告，不连接输入法。
+- `output/archives/native-text-facts-*.json`：原始合成输入、原生文字／注音／高亮／命中矩形及 DPI／坐标转换。
+- `output/archives/native-text-comparison-*.json`：24 组固定测量对照与 24 组真实字体事实。网页与固定测量允许 1 物理像素取整差；字体实测不作等值保证。
+- `upstream_hover_test.cpp`：提取的真实悬停／按下／松开事件，在受控矩形上验证回调和翻页优先级。其矩形仍是模拟值，与前一项真实生产布局报告分层验收。
+
 ## D1a：图片锚点与画布
 
 这是 D1 的第一批，**仅验证装饰图片的锚点、完整画布与原点换算**。不更改产品布局、不修复已交接的 C1b 崩溃，也不将 D1 整体标记完成。
