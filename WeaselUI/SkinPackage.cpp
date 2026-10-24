@@ -206,7 +206,7 @@ bool LoadDisplayPreferences(const std::filesystem::path& path, UIStyle& style,
     const int version = Number(data, "schemaVersion", 2, 1, 2);
     UIStyle next = style;
     auto text = [&data](const char* key, const char* fallback) { return data.if_contains(key) ? String(data, key) : std::string(fallback); };
-    auto position = text("annotationPosition", version == 1 ? "skin" : "above");
+    auto position = text("annotationPosition", "skin");
     if (position != "skin" && position != "above" && position != "beside" && position != "hidden") throw std::runtime_error("Unknown annotation position");
     bool enabled = data.if_contains("annotationEnabled") ? data.at("annotationEnabled").as_bool() : true;
     if (!enabled) next.annotation_position = 2;
@@ -214,12 +214,12 @@ bool LoadDisplayPreferences(const std::filesystem::path& path, UIStyle& style,
     if (version == 2) {
       auto empty = text("emptyAnnotationMode", "collapse");
       if (empty != "collapse" && empty != "reserve") throw std::runtime_error("Unknown empty annotation mode");
-      next.annotation_collapse_empty = empty == "collapse";
-      auto fontMode = text("fontMode", "user");
+      if (data.if_contains("emptyAnnotationMode")) next.annotation_collapse_empty = empty == "collapse";
+      auto fontMode = text("fontMode", "skin");
       if (fontMode != "user" && fontMode != "skin") throw std::runtime_error("Unknown font mode");
       int font = Number(data, "fontPoint", 12, 8, 48), comment = Number(data, "commentFontPoint", 10, 8, 32);
       if (fontMode == "user") { next.font_point = next.label_font_point = font; next.comment_font_point = comment; }
-      auto density = text("density", "compact");
+      auto density = text("density", "skin");
       if (density != "compact" && density != "standard" && density != "skin") throw std::runtime_error("Unknown display density");
       if (density != "skin") {
         int inset = density == "compact" ? 4 : 6;
@@ -243,9 +243,9 @@ bool LoadCandidatePlacement(const std::filesystem::path& path,
     CandidatePlacement next;
     next.offset_x = Number(data, "candidateOffsetX", 0, -256, 256);
     next.gap = Number(data, "candidateGap", 6, 0, 128);
-    auto position = data.if_contains("candidatePlacement") ? String(data, "candidatePlacement") : "auto";
-    if (position != "auto" && position != "below" && position != "above") throw std::runtime_error("Unknown candidate placement");
-    next.preference = position == "above" ? 2 : position == "below" ? 1 : 0;
+    auto position = data.if_contains("candidatePlacement") ? String(data, "candidatePlacement") : "native";
+    if (position != "native" && position != "auto" && position != "below" && position != "above") throw std::runtime_error("Unknown candidate placement");
+    next.preference = position == "native" ? -1 : position == "above" ? 2 : position == "below" ? 1 : 0;
     next.avoid_decorations = data.if_contains("avoidDecorations") ? data.at("avoidDecorations").as_bool() : true;
     placement = next; error.clear(); return true;
   } catch (const std::exception& ex) { error = ex.what(); return false; }

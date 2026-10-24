@@ -1749,7 +1749,7 @@ void WeaselPanel::_RepositionWindow(const bool& adj) {
   GetWindowRect(&rcWindow);
   int width = (rcWindow.right - rcWindow.left);
   int height = (rcWindow.bottom - rcWindow.top);
-  if (m_style.layout_type == UIStyle::LAYOUT_HORIZONTAL &&
+  if (m_placement.preference != -1 && m_style.layout_type == UIStyle::LAYOUT_HORIZONTAL &&
       m_status.composing && m_candidateCount && !hide_candidates &&
       rcWorkArea.right > rcWorkArea.left && rcWorkArea.bottom > rcWorkArea.top) {
     if (!m_has_caret) return;

@@ -328,6 +328,23 @@ static bool PreferenceTests() {
     auto root = weasel::SkinDataRoot();
     auto write = [](const std::filesystem::path& path, const char* value) { std::ofstream stream(path); stream << value; };
     auto style = ui.style(); std::string error;
+    style.font_point = 17; style.label_font_point = 11; style.comment_font_point = 9;
+    style.annotation_position = 0; style.annotation_collapse_empty = false;
+    style.margin_x = 7; style.margin_y = 9; style.candidate_spacing = 13;
+    const auto baseStyle = style;
+    if (!weasel::LoadActiveSkin(style, error) || style != baseStyle)
+      throw std::runtime_error("Missing preferences override base style: " + error);
+    weasel::CandidatePlacement defaultPlacement;
+    if (!weasel::LoadCandidatePlacement(root / L"display.json", defaultPlacement, error) || defaultPlacement.preference != -1)
+      throw std::runtime_error("Missing preferences did not keep native positioning");
+    write(root / L"display.json", R"({"schemaVersion":2})");
+    if (!weasel::LoadActiveSkin(style, error) || style != baseStyle)
+      throw std::runtime_error("Empty preferences override base style: " + error);
+    write(root / L"display.json", R"({"schemaVersion":2,"annotationPosition":"beside"})");
+    if (!weasel::LoadActiveSkin(style, error) || style != baseStyle)
+      throw std::runtime_error("Partial preferences override unrelated base style: " + error);
+    if (!weasel::LoadCandidatePlacement(root / L"display.json", defaultPlacement, error) || defaultPlacement.preference != -1)
+      throw std::runtime_error("Missing placement did not keep native positioning");
     write(root / L"display.json", R"({"schemaVersion":1,"annotationPosition":"above"})");
     if (!weasel::LoadActiveSkin(style, error) || style.annotation_position != 1) throw std::runtime_error("No-skin preference failed: " + error);
     auto skin = root / L"skins" / L"neutral" / L"1.0.0"; std::filesystem::create_directories(skin);
@@ -357,7 +374,7 @@ static bool PreferenceTests() {
     write(skin / L"manifest.json", R"({"schemaVersion":2,"minEngineVersion":"1.1","variants":[{"id":"plain","style":{},"layers":[]}]})");
     if (weasel::LoadActiveSkin(style, error) || style != before) throw std::runtime_error("Missing capability committed incomplete style");
     passed = true;
-    report << "PASS no-skin, pure-color, legacy override, follow-skin, V2 fonts/density/visibility and failure rollback";
+    report << "PASS inherited defaults, empty/partial preferences, no-skin, pure-color, legacy override, follow-skin, V2 fonts/density/visibility and failure rollback";
   } catch (const std::exception& error) { report << error.what(); passed = false; }
   SetEnvironmentVariableW(L"LOCALAPPDATA", *previous ? previous : nullptr);
   if (sandbox.parent_path() == temporary) std::filesystem::remove_all(sandbox);
@@ -617,6 +634,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   if (!manifest.empty() && !weasel::LoadSkinManifest(manifest, variant, style, error, overrides)) {
     MessageBoxW(window, u8tow(error).c_str(), L"皮肤加载失败", MB_ICONERROR);
     DestroyWindow(window); _Module.Term(); CoUninitialize(); return 1;
+  }
+  // Explicitly opt the placement regression into the enhanced path it tests.
+  if (placement_test && display_preferences.empty()) {
+    std::filesystem::create_directories(previewLogs);
+    std::ofstream file(previewLogs / L"display.json");
+    file << R"({"schemaVersion":2,"candidatePlacement":"auto"})";
   }
   // Use the same defaults as production, without reading the user's active display.json.
   if (display_preferences.empty()) display_preferences = previewLogs / L"display.json";

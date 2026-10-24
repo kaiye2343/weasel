@@ -6,13 +6,13 @@ public sealed class DisplayPreferences
 {
     public int SchemaVersion { get; set; } = 2;
     public bool AnnotationEnabled { get; set; } = true;
-    public string AnnotationPosition { get; set; } = "above";
+    public string AnnotationPosition { get; set; } = "skin";
     public string EmptyAnnotationMode { get; set; } = "collapse";
-    public string FontMode { get; set; } = "user";
+    public string FontMode { get; set; } = "skin";
     public int FontPoint { get; set; } = 12;
     public int CommentFontPoint { get; set; } = 10;
-    public string Density { get; set; } = "compact";
-    public string CandidatePlacement { get; set; } = "auto";
+    public string Density { get; set; } = "skin";
+    public string CandidatePlacement { get; set; } = "native";
     public int CandidateOffsetX { get; set; }
     public int CandidateGap { get; set; } = 6;
     public bool AvoidDecorations { get; set; } = true;
@@ -36,7 +36,7 @@ public sealed class DisplayPreferencesStore(string root)
         if (value.SchemaVersion != 2 || value.AnnotationPosition is not ("skin" or "above" or "beside") ||
             value.EmptyAnnotationMode is not ("collapse" or "reserve") || value.FontMode is not ("user" or "skin") ||
             value.Density is not ("compact" or "standard" or "skin") || value.FontPoint is < 8 or > 48 || value.CommentFontPoint is < 8 or > 32 ||
-            value.CandidatePlacement is not ("auto" or "below" or "above") || value.CandidateOffsetX is < -256 or > 256 || value.CandidateGap is < 0 or > 128)
+            value.CandidatePlacement is not ("native" or "auto" or "below" or "above") || value.CandidateOffsetX is < -256 or > 256 || value.CandidateGap is < 0 or > 128)
             throw new InvalidDataException("候选显示偏好无效。");
     }
     public void Save(DisplayPreferences value) { Validate(value); SkinJson.WriteAtomic(PathName, value); }
