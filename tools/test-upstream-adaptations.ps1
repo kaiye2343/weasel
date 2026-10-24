@@ -63,6 +63,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Missing response baseline in Git history' }
 CompileResponse 'baseline' ($baseline -join "`n") $true
 $panel = [IO.File]::ReadAllText((Join-Path $project 'WeaselUI/WeaselPanel.cpp'))
 $hover = Extract $panel 'LRESULT WeaselPanel::OnMouseMove(' 'LRESULT WeaselPanel::OnMouseLeave('
+$hover += "`n" + (Extract $panel 'LRESULT WeaselPanel::OnLeftClickedUp(' 'LRESULT WeaselPanel::OnLeftClickedDown(')
+$hover += "`n" + (Extract $panel 'LRESULT WeaselPanel::OnLeftClickedDown(' 'UINT_PTR WeaselPanel::ptimer =')
 [IO.File]::WriteAllText((Join-Path $scratch 'hover_under_test.inc'), $hover, $utf8)
 & cl /nologo /EHsc /std:c++17 /utf-8 /MT /DUNICODE /D_UNICODE "/I$project/include" "/I$env:BOOST_ROOT" "/I$scratch" tests/upstream_hover_test.cpp "/Fo$scratch/hover.obj" "/Fe:$scratch/hover.exe" /link user32.lib
 if ($LASTEXITCODE -ne 0) { throw 'Hover fixture compilation failed' }
@@ -74,6 +76,14 @@ if ($wrong -eq $hover) { throw 'Hover coordinate negative-control seam changed' 
 & cl /nologo /EHsc /std:c++17 /utf-8 /MT /DUNICODE /D_UNICODE "/I$project/include" "/I$env:BOOST_ROOT" "/I$scratch" tests/upstream_hover_test.cpp "/Fo$scratch/hover-bad.obj" "/Fe:$scratch/hover-bad.exe" /link user32.lib
 if ($LASTEXITCODE -ne 0) { throw 'Hover negative-control compilation failed' }
 CheckExe "$scratch/hover-bad.exe" 1
+# Negative control: the editor's closed right/bottom edges are invalid for
+# native word selection, even though they remain valid editor interactions.
+$closed = $hover.Replace('rect.PtInRect(point)', 'ClosedHit(rect, point)')
+if ($closed -eq $hover) { throw 'Native half-open negative-control seam changed' }
+[IO.File]::WriteAllText((Join-Path $scratch 'hover_under_test.inc'), $closed, $utf8)
+& cl /nologo /EHsc /std:c++17 /utf-8 /MT /DUNICODE /D_UNICODE "/I$project/include" "/I$env:BOOST_ROOT" "/I$scratch" tests/upstream_hover_test.cpp "/Fo$scratch/hover-closed.obj" "/Fe:$scratch/hover-closed.exe" /link user32.lib
+if ($LASTEXITCODE -ne 0) { throw 'Native half-open negative-control compilation failed' }
+CheckExe "$scratch/hover-closed.exe" 1
 & cl /nologo /EHsc /std:c++17 /utf-8 /DVERSION_MAJOR=0 /DVERSION_MINOR=17 /DVERSION_PATCH=4 /DPRODUCT_VERSION=0.17.4.999.test "/I$project/include" tests/version_macro_test.cpp "/Fo$scratch/version.obj" "/Fe:$scratch/version.exe"
 if ($LASTEXITCODE -ne 0) { throw 'Product version expansion test failed' }
 CheckExe "$scratch/version.exe"

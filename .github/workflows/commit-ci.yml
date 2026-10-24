@@ -228,6 +228,9 @@ jobs:
       - name: Test isolated historical controls
         shell: pwsh
         run: ./tools/test-native-regressions.ps1
+      - name: Compare independent native text layouts and report font facts without UI
+        shell: pwsh
+        run: ./tools/test-native-layout-facts.ps1
       - name: Validate native PDB identity and symbol records
         shell: pwsh
         run: ./tools/test-native-symbols.ps1 -VerifyProduction
@@ -335,6 +338,7 @@ jobs:
             output/archives/performance-probe-overhead.csv
             output/archives/performance-core-*.json
             output/archives/shared-skin-anchors-*.json
+            output/archives/native-text-*.json
             .tools/shared-skin-anchors-*/**
             render-backend-benchmark.csv
             .tools/designer-browser/

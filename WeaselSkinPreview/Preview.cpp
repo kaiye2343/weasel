@@ -15,6 +15,7 @@
 #include <chrono>
 #include <algorithm>
 #include <vector>
+#include "../tests/native_layout_facts.h"
 
 CAppModule _Module;
 static weasel::UI ui;
@@ -534,6 +535,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
   SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
   CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED); _Module.Init(nullptr, instance);
   int count = 0; LPWSTR* args = CommandLineToArgvW(GetCommandLineW(), &count);
+  if (count > 1 && !wcscmp(args[1], L"--layout-facts")) {
+    const bool passed = count == 4 && native_layout_facts::Run(args[2], args[3]);
+    LocalFree(args); _Module.Term(); CoUninitialize();
+    return passed ? 0 : 10;
+  }
   if (count == 2 && !wcscmp(args[1], L"--publication-test")) {
     LocalFree(args);
     const bool passed = PublicationTests();
