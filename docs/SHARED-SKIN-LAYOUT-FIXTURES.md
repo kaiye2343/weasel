@@ -49,8 +49,9 @@ node tests/shared_skin_anchor_fixture_test.cjs
 
 - DSH：单次会话 `session-47a3e84d-bdf7-4dff-9e69-aa407ce93002`，`workbuddy-global/deepseek-v4.1-flash`，`workspace-write / ask`，仅新增原生测试源文件；未运行 Shell、测试或提交。
 - Codex：共享输入、Node 桥接与检查、隔离构建脚本、CI 接入、实际源码审查；原生测试不以 DSH 的 DONE 自述验收。
-- 本地两项 Node 检查与 PowerShell 语法检查通过；本机没有 MSVC，原生编译及真实跨端结果待 CI。
-- 完整 CI 已有 C1b 访问违例阻塞；D1a 步骤安排在它之前，单独记录 D1a 结果，不能把步骤通过等同于完整构建通过。
+- 本地两项 Node 检查与 PowerShell 语法检查通过；[CI 40082835762](https://github.com/kaiye2343/weasel/actions/runs/40082835762) 中 x64／Win32 各 24 组真实编译／跨端比较通过，`/W4 /WX` 门槛保留。实际原始报告进入工作流失败附件；本机未运行 MSVC。
+- 完整 CI 仍因已交接的 C1b 访问违例失败。D1a 步骤在它之前成功，不能把步骤通过等同于完整构建通过，也没有生成本批可安装的新完整包。
+- 准备命中夹具时发现网页／原生命中契约差异，已另写[问题单](issues/2026-10-24-preview-hit-contract-difference.md)，停止相关修复尝试，未将命中比较记为通过。
 - 发现新问题时写 `docs/issues/` 问题单并停止相关修复尝试，由用户调用高级模型处理。
 
 ## 尚未交付的 D1 后续部分

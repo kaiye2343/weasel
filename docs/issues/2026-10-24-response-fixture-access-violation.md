@@ -22,7 +22,8 @@
 | 首次本批失败源码 | `7a5af1026eda860b4fb520a1dc8866cc4a6b3a4c` |
 | 失败 CI | [40068466767](https://github.com/kaiye2343/weasel/actions/runs/40068466767) |
 | 已推送诊断提交 | `9e258d16183d12fd1df85fda7b03a316f0f41007` |
-| 诊断提交 CI | [40069806242](https://github.com/kaiye2343/weasel/actions/runs/40069806242)，状态 failure；尚未取得失败正文，不能认定与前次原因相同 |
+| 诊断提交 CI | [40069806242](https://github.com/kaiye2343/weasel/actions/runs/40069806242)，状态 failure；后续已取得既有日志，仍为响应夹具访问违例 |
+| 独立 D1a 后续 CI | [40082835762](https://github.com/kaiye2343/weasel/actions/runs/40082835762)，D1a 两架构步骤通过，完整工作流再次停在同一响应夹具；未对本问题新增修复或插桩 |
 
 工作区存在用户修改 `tools/SkinFileTrace/README.md`，必须保留，不纳入处理提交。接手时重新检查实际 Git 状态，不重置分支。
 
@@ -51,7 +52,7 @@ Creating library .../current/response.lib and object .../current/response.exp
 
 本机已保存首轮原始失败日志：`.tools/dsh-plan-20261023/ci-40068466767-failed.log`。该目录被 Git 忽略，跨机器接手应从对应 Actions 获取日志，不能依赖本机私有目录运行产品。
 
-第二轮日志获取时，GitHub CLI 写入本机日志缓存被拒绝访问；尚未读取第二轮失败正文。这是获取证据的工具限制，不是已确认的 C++ 故障原因。当前执行者未为此修改缓存权限。
+第二轮最初获取日志时，GitHub CLI 写入本机日志缓存被拒绝访问。后续通过 GitHub Jobs 日志接口取得既有日志，没有修改缓存权限，也没有追加产品／测试诊断。该工具限制不是 C++ 故障原因。
 
 ## 相关实现与复现入口
 
@@ -90,11 +91,22 @@ current 使用当前源码；baseline 使用 Git 中 `c8c3332^` 的旧响应方�
 
 在用户提出“发现问题写 Markdown 交接”之前，已提交 `9e258d1`，仅在响应测试增加 `[response-phase]` 阶段输出，标记 comparisons、optional cursor、probe start/started、模式、首次响应解析完成和 probe finish。
 
-此诊断不改生产行为。第二轮 CI 已结束为 failure，但失败正文尚未取得，**不能声称阶段标记已定位崩溃位置**。标记目前保留在测试源码，后续由接手模型决定如何处理；当前执行者不追加诊断尝试。
+此诊断不改生产行为。后续取得的第二轮日志，以及仅新增 D1a 夹具后的 CI，均出现以下既有标记：
+
+```text
+[response-phase] comparisons
+[response-phase] optional cursor
+[response-phase] probe start
+... response.exe expected 0, got -1073741819
+```
+
+没有 `probe started`。因此可把范围缩小到两条标记之间，包含探针参数／错误字符串的构造与 `Start` 调用及其检查，**尚不能断言已定位至 Start 内部或确定根因**。没有崩溃栈或更细日志。标记仍保留，后续由接手模型处理；当前执行者不追加诊断或修复尝试。
+
+新增只读取得的原始日志留在本机忽略目录：`.tools/dsh-plan-20261023/ci-40069806242-job.log`、`ci-40082835762-job.log`。跨机器接手从对应 CI 获取，不依赖该本机目录。
 
 ## 尚待高级模型决定与处理
 
-- 先取得第二轮失败日志，确认失败是否仍在同一测试，以及最后成功阶段。
+- 已取得上述第二轮既有日志；接手时核对最新源码与 CI，避免把阶段区间误当作已确认根因。
 - 结合实际证据决定是否需要异常调用栈、编译模式对照或更小夹具；当前列举项均不是已确认原因。
 - 在正确调用链上形成可重复失败与修复后的回归，不能通过移除 Scope、跳过测试或单纯增加优化选项掩盖问题。
 - 清理临时阶段诊断，保留有价值的失败证据；不得放宽现有测试门槛。
