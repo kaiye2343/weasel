@@ -68,3 +68,7 @@ Node 的 `--test` 子进程 `spawn EPERM` 是本机受限测试启动条件，�
 ## 原生取证 API 依据
 
 使用微软原生调试接口的[调试事件循环](https://learn.microsoft.com/en-us/windows/win32/debug/writing-the-debugger-s-main-loop)、[StackWalk64](https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-stackwalk64) 和 [SymFromAddr](https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-symfromaddr)。符号版改变复现条件后，改由独立进程读取原目标异常，未声称捕获到了一个不存在的符号栈。
+
+## 随后授权安装（2026-10-25）
+
+用户明确授权安装 .158，已完成 UAC、成套升级及安装后核对：九个原生组件、系统前端和 418 个设置中心文件一致，493 个个人文件保留，普通用户服务读取原资料目录。仅发行元数据更新，复用既有备份；日常输入仍由用户本人验收。详见 [安装记录](IMPLEMENTATION-STATUS.md)。
