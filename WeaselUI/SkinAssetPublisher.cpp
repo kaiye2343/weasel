@@ -132,7 +132,7 @@ bool IsDigestName(const std::wstring& name, std::wstring* extension = nullptr) {
 
 bool ComputeSha256(const std::vector<BYTE>& data, std::array<BYTE, 32>& digest,
                    std::string& error) {
-  weasel::performance::processProbe.Add(
+  weasel::performance::GetProcessProbe().Add(
       weasel::performance::Counter::DigestRead);
   BCRYPT_ALG_HANDLE raw_algorithm = nullptr;
   NTSTATUS status =

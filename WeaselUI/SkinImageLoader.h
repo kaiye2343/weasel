@@ -20,7 +20,7 @@ struct SkinImageLoadError {
 inline std::unique_ptr<Gdiplus::Bitmap> LoadSkinBitmap(
     const wchar_t* path, SkinImageLoadError& error) {
   error = {};
-  weasel::performance::processProbe.Add(
+  weasel::performance::GetProcessProbe().Add(
       weasel::performance::Counter::Decode);
   auto fail = [&](const char* stage, Gdiplus::Status status) {
     error.stage = stage;
@@ -81,9 +81,9 @@ inline std::unique_ptr<Gdiplus::Bitmap> ScaleSkinBitmap(
     Gdiplus::PixelOffsetMode offset = Gdiplus::PixelOffsetModeDefault) {
   if (width < 1 || height < 1 || width > 2048 || height > 2048) return {};
   weasel::performance::Scope scaleProbe(
-      weasel::performance::processProbe,
+      weasel::performance::GetProcessProbe(),
       weasel::performance::Stage::ResourcePrepare);
-  weasel::performance::processProbe.Add(
+  weasel::performance::GetProcessProbe().Add(
       weasel::performance::Counter::Scale);
   std::unique_ptr<Gdiplus::Bitmap> bitmap;
   try { bitmap = std::make_unique<Gdiplus::Bitmap>(width, height, PixelFormat32bppPARGB); }

@@ -112,7 +112,7 @@ static bool PerformanceProbeTests(HWND owner) {
     for (int group = 0; group < 3; ++group) for (int phase = 0; phase < 4; ++phase) {
       const bool enabled = phase == 1 || phase == 2;
       std::string error;
-      if (enabled && !perf::processProbe.Start(options, error))
+      if (enabled && !perf::GetProcessProbe().Start(options, error))
         throw std::runtime_error(error);
       const auto start = Clock::now();
       for (size_t frame = 0; frame < 200; ++frame) {
@@ -123,15 +123,15 @@ static bool PerformanceProbeTests(HWND owner) {
       const double elapsed = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
       perf::Report report;
       if (enabled) {
-        if (!perf::processProbe.Enabled() || elapsed >= options.durationSeconds * 1000.0)
+        if (!perf::GetProcessProbe().Enabled() || elapsed >= options.durationSeconds * 1000.0)
           throw std::runtime_error("ABBA sampling interval expired before the trial completed");
-        if (!perf::processProbe.Finish(report, error)) throw std::runtime_error(error);
+        if (!perf::GetProcessProbe().Finish(report, error)) throw std::runtime_error(error);
         for (auto stage : {perf::Stage::Layout, perf::Stage::ResourcePrepare, perf::Stage::PaintSubmit})
           if (!report.stages[static_cast<size_t>(stage)].samples)
             throw std::runtime_error("A real preview timing hook did not run");
         if (!report.counters[static_cast<size_t>(perf::Counter::FrameSubmit)])
           throw std::runtime_error("No real frame was submitted");
-      } else if (perf::processProbe.Enabled()) {
+      } else if (perf::GetProcessProbe().Enabled()) {
         throw std::runtime_error("Probe was unexpectedly enabled");
       }
       // Pixel hashing is deliberately outside both the timing and sampling interval.
@@ -168,7 +168,7 @@ static bool PerformanceProbeTests(HWND owner) {
     std::ofstream("native-performance-probe-test.log") << "FAIL " << error.what() << '\n';
     perf::Report discarded;
     std::string ignored;
-    perf::processProbe.Finish(discarded, ignored);
+    perf::GetProcessProbe().Finish(discarded, ignored);
   }
   RemovePropW(panel, L"Weasel.RenderProbe");
   RemovePropW(panel, L"Weasel.RenderGeneration");

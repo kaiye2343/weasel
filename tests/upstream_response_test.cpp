@@ -9,7 +9,6 @@
 #include <WeaselPerformance.h>
 #include <boost/archive/text_woarchive.hpp>
 #include <cstring>
-#include <cstdio>
 #include <functional>
 #include <iostream>
 #include <list>
@@ -18,9 +17,6 @@
 #include <vector>
 #include <stdexcept>
 #include <type_traits>
-#ifdef WEASEL_RESPONSE_FAULT_DIAGNOSTICS
-#include "native_fault_report.h"
-#endif
 
 using namespace weasel;
 using WeaselSessionId = DWORD;
@@ -153,23 +149,15 @@ static void OptionalCursor() {
   }
 }
 int main() try {
-#ifdef WEASEL_RESPONSE_FAULT_DIAGNOSTICS
-  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-  SetUnhandledExceptionFilter(ReportNativeFault);
-#endif
-  std::fputs("[response-phase] comparisons\n", stderr);
   Comparisons();
-  std::fputs("[response-phase] optional cursor\n", stderr);
   OptionalCursor();
   ConfigureApi();
 #ifndef LEGACY_RESPONSE
-  std::fputs("[response-phase] probe start\n", stderr);
   performance::Options probeOptions;
   probeOptions.scenarioId = "synthetic.response";
   probeOptions.available[static_cast<size_t>(performance::Stage::ContextResponse)] = true;
   std::string probeError;
-  Check(performance::processProbe.Start(probeOptions, probeError), "response timing probe starts");
-  std::fputs("[response-phase] probe started\n", stderr);
+  Check(performance::GetProcessProbe().Start(probeOptions, probeError), "response timing probe starts");
 #endif
   input.data_size = sizeof(input) - sizeof(input.data_size);
   inputStatus.data_size = sizeof(inputStatus) - sizeof(inputStatus.data_size);
@@ -195,7 +183,6 @@ int main() try {
   char labelA[] = "A", labelB[] = "B", labelC[] = "C";
   char* labels[] = {labelA, labelB, labelC};
   for (int mode = 0; mode < 3; ++mode) {
-    std::fprintf(stderr, "[response-phase] mode %d\n", mode);
     RimeWithWeaselHandler h;
     h.m_session_status_map.at(2).session_id = 2;
     h.m_global_ascii_mode = true;
@@ -209,7 +196,6 @@ int main() try {
     style.skin_images.push_back({L"X:\\皮肤\\test.png", L"top-right", -7, 9, 50, 60, 1});
     input.select_labels = mode == 2 ? labels : nullptr;
     Result r = Respond(h);
-    std::fputs("[response-phase] first response parsed\n", stderr);
     Check(r.commit == u8tow(commit), "commit Unicode and escapes roundtrip");
     Check(r.status.schema_id == L"wanxiang_work" && r.status.composing &&
           r.status.ascii_mode && r.status.full_shape && !r.status.disabled,
@@ -266,9 +252,8 @@ int main() try {
   Check(fallback.context.preedit.str == u8tow(composition) &&
         fallback.context.cinfo.empty(), "preview fallback without candidates");
 #ifndef LEGACY_RESPONSE
-  std::fputs("[response-phase] probe finish\n", stderr);
   performance::Report probeReport;
-  Check(performance::processProbe.Finish(probeReport, probeError), "response timing probe finishes");
+  Check(performance::GetProcessProbe().Finish(probeReport, probeError), "response timing probe finishes");
   Check(probeReport.stages[static_cast<size_t>(performance::Stage::ContextResponse)].samples == 15,
         "real response hook records successful, empty and failed callback attempts");
   Check(!probeReport.stages[static_cast<size_t>(performance::Stage::CoreProcessKey)].available,

@@ -355,7 +355,7 @@ BOOL RimeWithWeaselHandler::ProcessKeyEvent(KeyEvent keyEvent,
   Bool handled;
   {
     weasel::performance::Scope coreProbe(
-        weasel::performance::processProbe,
+        weasel::performance::GetProcessProbe(),
         weasel::performance::Stage::CoreProcessKey);
     handled = rime_api->process_key(session_id, keyEvent.keycode,
                                     expand_ibus_modifier(keyEvent.mask));
@@ -992,7 +992,7 @@ inline std::string _GetLabelText(const std::vector<Text>& labels,
 
 bool RimeWithWeaselHandler::_Respond(WeaselSessionId ipc_id, EatLine eat) {
   weasel::performance::Scope responseProbe(
-      weasel::performance::processProbe,
+      weasel::performance::GetProcessProbe(),
       weasel::performance::Stage::ContextResponse);
   std::wstring body;
   body.reserve(4096);

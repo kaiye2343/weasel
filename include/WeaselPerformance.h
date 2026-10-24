@@ -505,9 +505,20 @@ inline void WriteReport(std::ostream& stream, const Report& report) {
   stream << out.str();
 }
 
-// C++17 inline variable: one instance per linked PE endpoint. This is not a
-// cross-process singleton.
-inline Probe processProbe;
+// Construct on first use and share across translation units of this PE.
+// This is not a cross-process singleton.
+inline Probe& GetProcessProbe() noexcept {
+  // Several native endpoints use /Zc:threadSafeInit-. These two objects are
+  // constant-initialized; call_once protects the dynamic Probe construction.
+  static std::atomic<Probe*> cached{nullptr};
+  if (Probe* probe = cached.load(std::memory_order_acquire)) return *probe;
+  static std::once_flag once;
+  std::call_once(once, [] {
+    static Probe probe;
+    cached.store(&probe, std::memory_order_release);
+  });
+  return *cached.load(std::memory_order_acquire);
+}
 
 }  // namespace performance
 }  // namespace weasel

@@ -208,7 +208,7 @@ DWORD ClientImpl::_SendMessage(WEASEL_IPC_COMMAND Msg,
                                DWORD lParam) {
   try {
     weasel::performance::Scope ipcProbe(
-        weasel::performance::processProbe,
+        weasel::performance::GetProcessProbe(),
         weasel::performance::Stage::IpcRoundtrip);
     PipeMessage req{Msg, wParam, lParam};
     return channel.Transact(req);

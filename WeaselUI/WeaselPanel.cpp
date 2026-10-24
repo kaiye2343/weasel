@@ -129,12 +129,12 @@ void WeaselPanel::_ReleaseSkinImages() {
 
 void WeaselPanel::_UpdateSkinGeometry() {
   weasel::performance::Scope resourceProbe(
-      weasel::performance::processProbe,
+      weasel::performance::GetProcessProbe(),
       weasel::performance::Stage::ResourcePrepare);
   const auto& frame = m_style.skin_frame_image.empty() ? m_style.background_image : m_style.skin_frame_image;
   std::error_code frameError;
   if (!frame.empty())
-    weasel::performance::processProbe.Add(
+    weasel::performance::GetProcessProbe().Add(
         weasel::performance::Counter::FileMetadata);
   const auto frameStamp = frame.empty() ? std::filesystem::file_time_type{} :
       std::filesystem::last_write_time(frame, frameError);
@@ -153,7 +153,7 @@ void WeaselPanel::_UpdateSkinGeometry() {
   std::vector<std::filesystem::file_time_type> stamps;
   for (const auto& image : m_style.skin_images) {
     std::error_code error;
-    weasel::performance::processProbe.Add(
+    weasel::performance::GetProcessProbe().Add(
         weasel::performance::Counter::FileMetadata);
     stamps.push_back(std::filesystem::last_write_time(image.path, error));
   }
@@ -265,7 +265,7 @@ void WeaselPanel::Refresh() {
   if (!hide_candidates || inline_no_candidates) {
     {
       weasel::performance::Scope layoutProbe(
-          weasel::performance::processProbe,
+          weasel::performance::GetProcessProbe(),
           weasel::performance::Stage::Layout);
       _InitFontRes();
       _CreateLayout();
@@ -733,7 +733,7 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
     // 只比路径会把「图没了」误判成「已经加载过」。
     if (m_bg_image == NULL || m_bg_image_path != background || m_bg_image_stale) {
       weasel::performance::Scope backgroundProbe(
-          weasel::performance::processProbe,
+          weasel::performance::GetProcessProbe(),
           weasel::performance::Stage::ResourcePrepare);
       auto* previous = m_bg_image;
       const auto previousPath = m_bg_image_path;
@@ -745,7 +745,7 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
         SkinImageLoadError error;
         src = LoadSkinBitmap(background.c_str(), error).release();
       } else {
-        weasel::performance::processProbe.Add(
+        weasel::performance::GetProcessProbe().Add(
             weasel::performance::Counter::Decode);
         src = Gdiplus::Bitmap::FromFile(background.c_str());
       }
@@ -758,7 +758,7 @@ void WeaselPanel::_HighlightText(CDCHandle& dc,
             (double)sw * sh > kBgImageMaxPixels) {
           double k = (double)kBgImageMaxSide / (double)(sw > sh ? sw : sh);
           UINT dw = (UINT)(sw * k), dh = (UINT)(sh * k);
-          weasel::performance::processProbe.Add(
+          weasel::performance::GetProcessProbe().Add(
               weasel::performance::Counter::Scale);
           Gdiplus::Bitmap* scaled =
               new Gdiplus::Bitmap(dw, dh, PixelFormat32bppPARGB);
@@ -1260,7 +1260,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
 // draw client area
 void WeaselPanel::DoPaint(CDCHandle dc) {
   weasel::performance::Scope paintProbe(
-      weasel::performance::processProbe,
+      weasel::performance::GetProcessProbe(),
       weasel::performance::Stage::PaintSubmit);
   // turn off WS_EX_TRANSPARENT, for better resp performance
   ModifyStyleEx(WS_EX_TRANSPARENT, WS_EX_LAYERED);
@@ -1342,7 +1342,7 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
     if (baseHit) {
       std::memcpy(pixels, m_skin_base_pixels.data(), baseBytes);
     } else {
-      weasel::performance::processProbe.Add(
+      weasel::performance::GetProcessProbe().Add(
           weasel::performance::Counter::BackgroundRebuild);
       // Drop the previous size before allocating scaled images or a new base.
       std::vector<BYTE>().swap(m_skin_base_pixels);
@@ -1630,7 +1630,7 @@ void WeaselPanel::_LayerUpdate(const CRect& rc, CDCHandle dc) {
   BLENDFUNCTION bf = {AC_SRC_OVER, 0, 0XFF, AC_SRC_ALPHA};
   if (UpdateLayeredWindow(m_hWnd, ScreenDC, &WindowPosAtScreen, &sz, dc,
                           &PointOriginal, RGB(0, 0, 0), &bf, ULW_ALPHA)) {
-    weasel::performance::processProbe.Add(
+    weasel::performance::GetProcessProbe().Add(
         weasel::performance::Counter::FrameSubmit);
     // Opt-in diagnostic probe: count successful frame submissions, not WM_PAINT.
     // RedrawWindow deliberately paints directly for applications which discard WM_PAINT.

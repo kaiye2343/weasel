@@ -64,8 +64,8 @@ $compatSource = Join-Path $scratch 'windows_compat.cpp'
 #include <windows.h>
 #include <WeaselPerformance.h>
 int main() {
-  weasel::performance::Scope scope(weasel::performance::processProbe, weasel::performance::Stage::Layout);
-  return weasel::performance::processProbe.Enabled() ? 1 : 0;
+  weasel::performance::Scope scope(weasel::performance::GetProcessProbe(), weasel::performance::Stage::Layout);
+  return weasel::performance::GetProcessProbe().Enabled() ? 1 : 0;
 }
 '@, [Text.UTF8Encoding]::new($false))
 $compatExe = Join-Path $scratch 'windows_compat.exe'
@@ -73,6 +73,19 @@ $compatExe = Join-Path $scratch 'windows_compat.exe'
 if ($LASTEXITCODE -ne 0) { throw "Performance probe Windows header compatibility failed: $LASTEXITCODE" }
 & $compatExe
 if ($LASTEXITCODE -ne 0) { throw 'Performance probe was enabled without explicit activation' }
+# Exercise the actual process endpoint, not only explicitly constructed locals.
+# Keep the default non-/O2 mode that exposed the missing inline initialization.
+foreach ($mode in @('default', 'optimized', 'production-default', 'production-optimized')) {
+  $lifetimeExe = Join-Path $scratch "process-probe-$mode.exe"
+  $lifetimeFlags = @('/nologo', '/EHsc', '/std:c++17', '/W4', '/WX', '/utf-8', '/MT', '/Y-',
+    "/I$project/include", "/Fo$objectDir/")
+  if ($mode.EndsWith('optimized')) { $lifetimeFlags += '/O2' }
+  if ($mode.StartsWith('production-')) { $lifetimeFlags += '/Zc:threadSafeInit-' }
+  & cl @lifetimeFlags (Join-Path $project 'tests/process_performance_probe_test.cpp') (Join-Path $project 'tests/process_performance_probe_peer.cpp') "/Fe:$lifetimeExe"
+  if ($LASTEXITCODE -ne 0) { throw "Process probe lifetime compilation failed: $mode" }
+  & $lifetimeExe
+  if ($LASTEXITCODE -ne 0) { throw "Process probe lifetime regression failed: $mode" }
+}
 $archive = Join-Path $project 'output/archives'
 New-Item -ItemType Directory -Path $archive -Force | Out-Null
 Copy-Item -LiteralPath $reportPath -Destination (Join-Path $archive "performance-core-$Architecture.json")

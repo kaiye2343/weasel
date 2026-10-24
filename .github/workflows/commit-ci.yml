@@ -195,6 +195,8 @@ jobs:
           if errorlevel 1 exit /b 1
           pwsh -NoProfile -File tools/test-native-performance-probe.ps1 -Architecture Win32
           if errorlevel 1 exit /b 1
+          pwsh -NoProfile -File tools/test-upstream-adaptations.ps1
+          if errorlevel 1 exit /b 1
           pwsh -NoProfile -File tools/test-symbol-parser.ps1
           if errorlevel 1 exit /b 1
       - name: Build dictionaries
@@ -350,10 +352,6 @@ jobs:
             .tools/symbol-parser-*/**
             .tools/upstream-ipc-*/*/*.log
             .tools/upstream-adaptations-*/**/*.log
-            .tools/upstream-adaptations-*/**/*.exe
-            .tools/upstream-adaptations-*/**/*.pdb
-            .tools/upstream-adaptations-*/**/*.inc
-            .tools/upstream-adaptations-*/**/*.map
             .tools/deployer-cli-*/*.log
             .tools/deployer-cli-*/real-rime/*.log
             .tools/skin-publication/**/**.log
