@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "scope": "decoration-anchors",
+  "dpi": [96, 144, 192],
+  "measurements": { "textAdvance": 8, "textHeight": 28, "commentAdvance": 6, "commentHeight": 18 },
+  "cases": [
+    {
+      "id": "above-mixed",
+      "annotationPosition": "above",
+      "emptyAnnotationMode": "collapse",
+      "frameOrigin": [16, 20],
+      "candidates": [{"text":"你好","comment":"ni hao"},{"text":"世界","comment":""},{"text":"岸","comment":"an"}],
+      "layers": [
+        {"id":"left-wing","anchor":"top_left","x":-29,"y":-53,"width":76,"height":62},
+        {"id":"right-character","anchor":"bottom_right","x":-176,"y":-149,"width":222,"height":184},
+        {"id":"wordmark","anchor":"bottom_left","x":0,"y":-3,"width":160,"height":38}
+      ]
+    },
+    {
+      "id": "empty-collapse",
+      "annotationPosition": "above",
+      "emptyAnnotationMode": "collapse",
+      "frameOrigin": [16, 20],
+      "candidates": [{"text":"你好","comment":""},{"text":"世界","comment":""}],
+      "layers": [{"id":"right-character","anchor":"bottom_right","x":-176,"y":-149,"width":222,"height":184}]
+    },
+    {
+      "id": "empty-reserve",
+      "annotationPosition": "above",
+      "emptyAnnotationMode": "reserve",
+      "frameOrigin": [16, 20],
+      "candidates": [{"text":"你好","comment":""},{"text":"世界","comment":""}],
+      "layers": [{"id":"right-character","anchor":"bottom_right","x":-176,"y":-149,"width":222,"height":184}]
+    },
+    {
+      "id": "hidden-annotation",
+      "annotationPosition": "hidden",
+      "emptyAnnotationMode": "collapse",
+      "frameOrigin": [32, 40],
+      "candidates": [{"text":"你好","comment":"ni hao"},{"text":"世界","comment":"shi jie"}],
+      "layers": [{"id":"left-wing","anchor":"top_left","x":-29,"y":-53,"width":76,"height":62}]
+    },
+    {
+      "id": "beside-annotation",
+      "annotationPosition": "beside",
+      "emptyAnnotationMode": "collapse",
+      "frameOrigin": [16, 20],
+      "candidates": [{"text":"你好","comment":"ni hao"},{"text":"岸","comment":""}],
+      "layers": [{"id":"bottom-right","anchor":"bottom_right","x":-8,"y":-8,"width":80,"height":80}]
+    },
+    {
+      "id": "all-four-corners",
+      "annotationPosition": "above",
+      "emptyAnnotationMode": "collapse",
+      "frameOrigin": [32, 40],
+      "candidates": [{"text":"共享布局","comment":"gong xiang bu ju"}],
+      "layers": [
+        {"id":"top-left","anchor":"top_left","x":-12,"y":-22,"width":32,"height":34},
+        {"id":"top-right","anchor":"top_right","x":-6,"y":-22,"width":32,"height":34},
+        {"id":"bottom-left","anchor":"bottom_left","x":-12,"y":-8,"width":32,"height":34},
+        {"id":"bottom-right","anchor":"bottom_right","x":-6,"y":-8,"width":32,"height":34}
+      ]
+    },
+    {
+      "id": "plain-no-decoration",
+      "annotationPosition": "hidden",
+      "emptyAnnotationMode": "collapse",
+      "frameOrigin": [0, 0],
+      "candidates": [{"text":"输入","comment":""}],
+      "layers": []
+    },
+    {
+      "id": "long-content",
+      "annotationPosition": "above",
+      "emptyAnnotationMode": "collapse",
+      "frameOrigin": [16, 20],
+      "candidates": [{"text":"这是一条合成的较长候选","comment":"he cheng chang hou xuan"},{"text":"第二项","comment":""}],
+      "layers": [{"id":"right-character","anchor":"bottom_right","x":-176,"y":-149,"width":222,"height":184}]
+    }
+  ]
+}

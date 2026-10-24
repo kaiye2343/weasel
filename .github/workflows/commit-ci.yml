@@ -82,6 +82,17 @@ jobs:
       - name: Configure VS 2022
         shell: pwsh
         run: Copy-Item env.vs2022.bat env.bat
+      - name: Test shared native and browser decoration anchors without UI
+        shell: cmd
+        run: |
+          node --test tests/shared_skin_anchor_fixture_test.cjs
+          if errorlevel 1 exit /b 1
+          pwsh -NoProfile -File tools/test-shared-skin-anchors.ps1 -Architecture x64
+          if errorlevel 1 exit /b 1
+          call "%VSINSTALLDIR%VC\Auxiliary\Build\vcvarsall.bat" x86
+          if errorlevel 1 exit /b 1
+          pwsh -NoProfile -File tools/test-shared-skin-anchors.ps1 -Architecture Win32
+          if errorlevel 1 exit /b 1
       - name: Test skin geometry
         shell: cmd
         run: |
@@ -321,6 +332,8 @@ jobs:
             output/archives/performance-preview-*.log
             output/archives/performance-probe-overhead.csv
             output/archives/performance-core-*.json
+            output/archives/shared-skin-anchors-*.json
+            .tools/shared-skin-anchors-*/**
             render-backend-benchmark.csv
             .tools/designer-browser/
             .tools/native-learning/
