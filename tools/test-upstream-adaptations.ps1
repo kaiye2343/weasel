@@ -50,7 +50,7 @@ function CompileResponse([string]$name, [string]$source, [bool]$legacy, [bool]$d
   if ($diagnostic) { $flags += @('/Zi', '/Bv', '/DWEASEL_RESPONSE_FAULT_DIAGNOSTICS', "/Fd$directory/response-compile.pdb") }
   $sources = @('tests/upstream_response_test.cpp', 'WeaselIPC/ResponseParser.cpp', 'WeaselIPC/Deserializer.cpp', 'WeaselIPC/ActionLoader.cpp', 'WeaselIPC/Committer.cpp', 'WeaselIPC/ContextUpdater.cpp', 'WeaselIPC/Configurator.cpp', 'WeaselIPC/Styler.cpp')
   $exe = Join-Path $directory 'response.exe'
-  $linkFlags = @("/LIBPATH:$env:BOOST_ROOT/stage/lib", 'advapi32.lib', 'user32.lib')
+  $linkFlags = @("/LIBPATH:$env:BOOST_ROOT/stage/lib", "/MAP:$directory/response.map", 'advapi32.lib', 'user32.lib')
   if ($diagnostic) { $linkFlags += @('/DEBUG:FULL', "/PDB:$directory/response.pdb", 'dbghelp.lib') }
   @{ sourceRevision = (git -C $project rev-parse HEAD); compiler = (Get-Command cl).Source;
      architecture = $env:VSCMD_ARG_TGT_ARCH; flags = $flags; sources = $sources; linkFlags = $linkFlags } |
@@ -64,6 +64,22 @@ try {
   CompileResponse 'current' ([IO.File]::ReadAllText($responsePath)) $false
 } catch {
   $originalFailure = $_
+  # Read the uninstrumented, non-/DEBUG executable in a separate debugger.
+  # MAP generation changes no compiler options or target source.
+  try {
+    $map = [IO.File]::ReadAllText((Join-Path $scratch 'current/response.map'))
+    $preferred = [regex]::Match($map, 'Preferred load address is\s+([0-9A-Fa-f]+)')
+    $probe = [regex]::Match($map, '(?m)^\s*[0-9A-Fa-f]+:[0-9A-Fa-f]+\s+\?processProbe@performance@weasel@@[^\s]*\s+([0-9A-Fa-f]+)')
+    if (!$preferred.Success -or !$probe.Success) { throw 'Missing exact probe MAP address' }
+    $rva = [Convert]::ToUInt64($probe.Groups[1].Value,16) - [Convert]::ToUInt64($preferred.Groups[1].Value,16)
+    $debugger = Join-Path $scratch 'response_debugger.exe'
+    & cl /nologo /EHsc /std:c++17 /utf-8 /MT "/I$project/include" tests/response_debugger.cpp "/Fo$scratch/response_debugger.obj" "/Fe:$debugger" /link dbghelp.lib
+    if ($LASTEXITCODE -ne 0) { throw 'Passive response debugger compilation failed' }
+    & $debugger (Join-Path $scratch 'current/response.exe') $rva.ToString('x') 2>&1 |
+      Tee-Object -FilePath (Join-Path $scratch 'passive-debugger.log')
+    if ($LASTEXITCODE -ne 0) { Write-Output "Passive debugger did not capture the original AV: $LASTEXITCODE" }
+    & dumpbin /DISASM (Join-Path $scratch 'current/response.exe') > (Join-Path $scratch 'original-disassembly.log')
+  } catch { Write-Output "Passive debugger evidence unavailable: $_" }
   Write-Output 'Original response fixture failed; collecting an isolated symbolized reproduction without changing optimization or runtime.'
   try { CompileResponse 'current-symbols' ([IO.File]::ReadAllText($responsePath)) $false $true }
   catch { Write-Output "Symbolized reproduction: $_" }

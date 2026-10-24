@@ -353,6 +353,7 @@ jobs:
             .tools/upstream-adaptations-*/**/*.exe
             .tools/upstream-adaptations-*/**/*.pdb
             .tools/upstream-adaptations-*/**/*.inc
+            .tools/upstream-adaptations-*/**/*.map
             .tools/deployer-cli-*/*.log
             .tools/deployer-cli-*/real-rime/*.log
             .tools/skin-publication/**/**.log
