@@ -75,4 +75,4 @@ JSON `schemaVersion=1`，字段包括源码号、PID、位宽、实际后端、D
 
 报告归档为 `performance-preview-*.json` 和 `performance-probe-overhead.csv`，保留每组数据；不对共享 runner 的一次绝对毫秒数设门槛。实际响应代码另在已有假 Rime／真实客户端解析夹具中启用采样，验证成功、空响应与失败回调共 15 次均结束计时；这不代表真实 librime 算法时间。
 
-C1b 实际构建与开销结果待 CI；真实服务／IPC 的隔离启用入口、核心测量和冷缓存场景继续留待 C1c。尚未据此实施缓存优化或宣称性能收益，不修改 IPC、UIStyle、算法或日常配置。
+C1b 的完整 CI 在隔离响应夹具运行时失败，开销结果未验收；按用户要求停止相关修复尝试，交接给高级模型，详见[访问违例问题单](issues/2026-10-24-response-fixture-access-violation.md)。真实服务／IPC 的隔离启用入口、核心测量和冷缓存场景继续留待 C1c。尚未据此实施缓存优化或宣称性能收益，不修改 IPC、UIStyle、算法或日常配置。
