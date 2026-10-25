@@ -50,6 +50,6 @@ static class SettingsTests
         string modelFile = Path.Combine(temp, "test-lts.gram"); File.WriteAllText(modelFile, "test-model"); service.ImportModel(modelFile);
         check(service.Models().Contains("test-lts"), "model import and scan");
         reject(() => service.ImportModel(modelFile), "model import never overwrites existing file");
-        check(SettingsModules.All.Select(m => m.Id).Distinct().Count() == 10, "module registry independent of skin variants");
+        check(SettingsModules.All.Select(m => m.Id).Distinct().Count() == 11 && SettingsModules.All.Any(m => m.Id == "subscriptions"), "module registry includes dictionary subscriptions independently of skin variants");
     }
 }

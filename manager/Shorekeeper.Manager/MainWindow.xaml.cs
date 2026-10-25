@@ -23,6 +23,7 @@ public partial class MainWindow : Window
             ["general"] = () => new SettingsPage(context, "general"), ["schemas"] = () => new SchemaPage(context),
             ["wanxiang"] = () => new WanxiangPage(context), ["keys"] = () => new SettingsPage(context, "keys"),
             ["dictionary"] = () => new SettingsPage(context, "dictionary"), ["skins"] = () => new SkinPage(context),
+            ["subscriptions"] = () => new DictionarySubscriptionPage(context),
             ["scenes"] = () => new ScenePage(context), ["backup"] = () => new BackupPage(context),
             ["sync"] = () => new SyncPage(context), ["diagnostics"] = () => new DiagnosticsPage(context)
         };

@@ -24,6 +24,7 @@ try
 {
     SkinDiagnosticsTests.Run(temp, Check);
     SettingsTests.Run(temp, Check, Reject);
+    await DictionarySubscriptionTests.Run(temp, Check, Reject);
     await SkinLibraryTests.Run(temp, (name, edit) => Package(name, edit: edit), Check, Reject);
     var store = new SkinStore(Path.Combine(temp, "store"));
     var skin = store.Import(Package("valid"));

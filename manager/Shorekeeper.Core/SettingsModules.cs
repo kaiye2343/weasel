@@ -13,6 +13,7 @@ public static class SettingsModules
         new SettingsModule("wanxiang", "万象输入", "兼容万象现有能力；专属选项按方案能力显示。"),
         new SettingsModule("keys", "按键与标点", "为全局或指定方案设置按键和全半角标点。"),
         new SettingsModule("dictionary", "词库与模型", "导入自定义词库，管理官方快照与语法模型。"),
+        new SettingsModule("subscriptions", "扩展词库与订阅", "下载游戏、动漫等扩展词库，按方案启用并管理更新与回退。"),
         new SettingsModule("skins", "皮肤", "独立导入、预览与选择皮肤，不修改输入方案。"),
         new SettingsModule("scenes", "场景", "工作与日常共用基础词库，分别保存学习数据。"),
         new SettingsModule("backup", "备份与恢复", "审阅配置修改，恢复保存前的配置。"),
