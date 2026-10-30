@@ -12,7 +12,7 @@
 dotnet run --project tools/LongInputBaseline -c Release --no-restore --
   --engine .tools/release-5dff81f/tools/rime.dll
   --output .tools/long-input-baseline/local-12bc76c3cf7b4bc68ba9529cfbf11d94
-  --revision ce0b6e6... --warmup 1 --repeats 5
+  --revision ce0b6e60b0614761d73945fa4b73699fd9193fb7 --warmup 1 --repeats 5
 
 Unhandled exception. System.InvalidOperationException:
   Rime user root isolation failed before session creation
@@ -21,6 +21,8 @@ Unhandled exception. System.InvalidOperationException:
 ```
 
 运行目录保留 `.isolated-baseline`、生成的 builder/static 合成输入资料。没有 `report.json` 或有效 trial 样本，不把源代码中实现的预热／重复／统计写成已执行结果。
+
+以上命令为首次运行记录，不是批准再次执行；接手获准复现时必须选择全新的输出子目录，现有目录受到防覆盖检查保护。
 
 ## 入口、影响与未确认项
 
