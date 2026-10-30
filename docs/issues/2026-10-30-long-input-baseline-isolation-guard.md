@@ -25,7 +25,7 @@ Unhandled exception. System.InvalidOperationException:
 ## 入口、影响与未确认项
 
 - `NativeRime.Open(builder, builder, true)` 执行 `RimeSetup` / `RimeInitialize`，随后将官方 `RimeGetUserDataDir()` 返回值转换为字符串，与预期 builder 完整路径比较。
-- 严格比较失败，scope 清理后抛出；外层尚未调用 `RimeStartMaintenance`、`RimeCreateSession` 或 `RimeProcessKey`。工具没有连接日常服务、运行桌面输入或读取日常资料／活动数据库。
+- 严格比较失败，scope 清理后抛出；外层尚未调用 `RimeStartMaintenance`、`RimeCreateSession` 或 `RimeProcessKey`。没有连接日常服务或运行桌面输入；脚本没有主动读取／复制日常资料或打开活动数据库。不过 `RimeInitialize` 已执行、原生实际返回目录未知，不能宣称已证明原生初始化全程隔离；该初始化内部是否另有访问需接手者核对，当前没有实际触及日常资料的证据。
 - 当前未记录原生返回的实际字符串，也没有异常栈以外的更细取证。不能归因为字符编码、路径重定向、API ABI 或沙箱中的某一项；这些均未确认。
 - 托管测量工具编译与 6 项纯统计／候选顺序契约通过，不能替代原生加载、部署、ABI、隔离目录及语义验证。
 
