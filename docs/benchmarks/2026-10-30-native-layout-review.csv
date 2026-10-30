@@ -1,0 +1,7 @@
+case_id,dpi,native_width,native_height,fixed_browser_width,fixed_browser_height
+above-mixed,96,160,56,128,64
+long-content,96,280,56,204,64
+above-mixed,144,237,84,192,96
+long-content,144,418,84,306,96
+above-mixed,192,317,111,256,128
+long-content,192,558,111,408,128
