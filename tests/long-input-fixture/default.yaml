@@ -1,0 +1,5 @@
+config_version: 'baseline-1'
+schema_list:
+  - schema: baseline
+menu:
+  page_size: 5

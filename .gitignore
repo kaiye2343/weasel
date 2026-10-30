@@ -65,5 +65,7 @@ manager/**/bin/
 manager/**/obj/
 tools/SkinFileTrace/bin/
 tools/SkinFileTrace/obj/
+tools/LongInputBaseline/bin/
+tools/LongInputBaseline/obj/
 
 /designer/node_modules/

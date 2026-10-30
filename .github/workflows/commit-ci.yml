@@ -58,6 +58,8 @@ jobs:
         run: |
           dotnet run --project manager/Shorekeeper.Tests -c Release -- .
           if ($LASTEXITCODE -ne 0) { throw 'Managed tests failed' }
+          dotnet run --project tools/LongInputBaseline -c Release -- --self-test
+          if ($LASTEXITCODE -ne 0) { throw 'Long input baseline statistics contracts failed' }
       - name: Publish self-contained manager
         shell: pwsh
         run: |

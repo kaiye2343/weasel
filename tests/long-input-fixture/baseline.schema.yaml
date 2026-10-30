@@ -1,0 +1,17 @@
+# Synthetic fixture only. This is not a stripped-down user/Wanxiang scheme.
+schema:
+  schema_id: baseline
+  name: Synthetic long input baseline
+  version: '1.0'
+engine:
+  processors: [speller, selector, navigator, express_editor]
+  segmentors: [abc_segmentor, fallback_segmentor]
+  translators: [script_translator]
+speller:
+  alphabet: abcdefghijklmnopqrstuvwxyz
+  delimiter: " '"
+translator:
+  dictionary: baseline
+  user_dict: baseline
+  enable_user_dict: true
+  enable_sentence: true

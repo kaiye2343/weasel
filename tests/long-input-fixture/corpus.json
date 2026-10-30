@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "lengths": [8, 16, 32, 64, 128],
+  "cases": [
+    {"id": "greeting-repeat", "seed": "nihao"},
+    {"id": "sentence-repeat", "seed": "woxiangzaizhelishuruyijuchangyidianzhongwen"},
+    {"id": "homophone-repeat", "seed": "shijieshangderenming"}
+  ]
+}

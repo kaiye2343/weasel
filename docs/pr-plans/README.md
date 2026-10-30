@@ -5,8 +5,8 @@
 | 顺序 | 计划 | 状态 | 依赖 |
 | --- | --- | --- | --- |
 | P0 | [01 版本与可靠性验收基线](01-reliability-baseline.md) | 文档完成，桌面待验收 | 无 |
-| P1 | [02 长串输入性能基线](02-long-input-baseline.md) | 待开始 | 无 |
-| P1 | [03 长串输入热点优化](03-long-input-optimization.md) | 待开始 | 02 的证据 |
+| P1 | [02 长串输入性能基线](02-long-input-baseline.md) | 工具草案，原生隔离受阻 | 新问题高级模型接手 |
+| P1 | [03 长串输入热点优化](03-long-input-optimization.md) | 阻塞，未优化 | 02 的证据及安全热点 |
 | P1 | [04 词库兼容性验证与方案](04-dictionary-compatibility.md) | 待高级模型接手 | 现有问题单 |
 | P1 | [05 词库兼容性实现](05-dictionary-implementation.md) | 阻塞：方案未确认 | 04 和处理方案确认 |
 | P2 | [06 设计器与原生布局对照](06-layout-comparison.md) | 待开始 | 先核对已有夹具与问题状态 |

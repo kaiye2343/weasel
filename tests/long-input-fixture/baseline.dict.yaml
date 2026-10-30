@@ -1,0 +1,32 @@
+---
+name: baseline
+version: '1.0'
+sort: by_weight
+...
+你	ni	100
+好	hao	100
+我	wo	100
+想	xiang	100
+在	zai	100
+这	zhe	100
+里	li	100
+输	shu	100
+入	ru	100
+一	yi	100
+句	ju	100
+长	chang	100
+点	dian	100
+中	zhong	100
+文	wen	100
+是	shi	100
+时	shi	90
+世	shi	80
+界	jie	100
+上	shang	100
+的	de	100
+人	ren	100
+名	ming	100
+你好	ni hao	200
+中文	zhong wen	200
+输入	shu ru	200
+世界	shi jie	200
