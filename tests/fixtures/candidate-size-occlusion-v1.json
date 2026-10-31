@@ -67,7 +67,7 @@
         "paddingLeft": 8,
         "paddingRight": 192,
         "paddingTop": 4,
-        "paddingBottom": 4,
+        "paddingBottom": 12,
         "candidateSpacing": 8
       },
       "measurements": {
@@ -167,7 +167,7 @@
         "paddingLeft": 8,
         "paddingRight": 192,
         "paddingTop": 4,
-        "paddingBottom": 4,
+        "paddingBottom": 12,
         "candidateSpacing": 8
       },
       "measurements": {
@@ -263,7 +263,7 @@
         "paddingLeft": 8,
         "paddingRight": 192,
         "paddingTop": 4,
-        "paddingBottom": 4,
+        "paddingBottom": 12,
         "candidateSpacing": 8
       },
       "measurements": {
