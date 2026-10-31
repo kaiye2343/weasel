@@ -42,6 +42,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Designer test dependency setup failed' }
           node tests/designer_test.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Designer package/geometry tests failed' }
+          node tests/shorekeeper_compact_test.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Sample compact skin contract failed' }
           node --test tests/native_diagnostics_test.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Native diagnostics parser tests failed' }
           Push-Location designer

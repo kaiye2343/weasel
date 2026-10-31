@@ -1,8 +1,12 @@
-param([string]$Source = "$PSScriptRoot/../skins/shorekeeper", [string]$Destination = "$PSScriptRoot/../output/archives/shorekeeper-1.0.0.rimeskin")
+param([string]$Source = "$PSScriptRoot/../skins/shorekeeper", [string]$Destination = '')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression
 $sourcePath = (Resolve-Path -LiteralPath $Source).Path
 $manifest = Get-Content -LiteralPath "$sourcePath/manifest.json" -Raw | ConvertFrom-Json
+if (!$Destination) {
+    if ($manifest.id -notmatch '^[a-z0-9][a-z0-9._-]{0,63}$' -or $manifest.id.Contains('..') -or $manifest.version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Invalid package identity' }
+    $Destination = Join-Path "$PSScriptRoot/../output/archives" "$($manifest.id)-$($manifest.version).rimeskin"
+}
 $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
 [void]$names.Add('manifest.json')
 [void]$names.Add($manifest.preview)

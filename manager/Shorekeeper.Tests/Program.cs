@@ -14,6 +14,8 @@ string Package(string name, string? extra = null, Action<SkinManifest>? edit = n
     string zipPath = Path.Combine(temp, name + ".rimeskin");
     using var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create);
     var manifest = SkinJson.Read<SkinManifest>(Path.Combine(source, "manifest.json"));
+    // Test version conflicts independently of the evolving example package.
+    manifest.Version = "1.0.0";
     edit?.Invoke(manifest);
     using (var writer = new StreamWriter(zip.CreateEntry("manifest.json").Open())) writer.Write(JsonSerializer.Serialize(manifest, new JsonSerializerOptions(SkinJson.Options) { RespectNullableAnnotations = false }));
     foreach (string png in Directory.GetFiles(source, "*.png")) zip.CreateEntryFromFile(png, Path.GetFileName(png));

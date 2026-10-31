@@ -17,7 +17,9 @@
 
 Actions → Shorekeeper build，或推送 shorekeeper 分支。Windows 2022、VS2022、Boost 1.84、librime 1.13.1、.NET 10；先检查皮肤、配置与同步协议，再构建完整 x64/x86 组件、安装包、原生预览、Windows x64 自包含面板。
 
-下载 artifact 后解压：tools/Shorekeeper.Manager.exe 打开面板，先导入 shorekeeper-1.0.0.rimeskin，再打开原生预览。可传 --data-root 指定独立皮肤资料目录。预览无需安装实验输入法。安装实验版、连接真实 WebDAV 账号分别由用户授权。
+下载 artifact 后解压：tools/Shorekeeper.Manager.exe 打开面板，先导入 shorekeeper-1.0.1.rimeskin，再打开原生预览。可传 --data-root 指定独立皮肤资料目录。预览无需安装实验输入法。安装实验版、连接真实 WebDAV 账号分别由用户授权。
+
+守岸人 1.0.1 仅收紧文字区：候选／注音为 12／10 pt，间距 8 DIP，左留白 8、上下留白 4 DIP。角色、翼光、艺术字和右侧装饰预留保持原样，因此含装饰的总画布不一定变矮。其他包仍按作者尺寸，已有用户字号覆盖仍优先。新版本与 1.0.0 并存；构建或程序升级不会自动改写已安装皮肤，需在设置中心导入并主动启用。用户修改过的旧包不会被覆盖。
 
 产物附提交号和 SHA256。只有 Actions 成功且所需文件存在才算构建通过；构建不能替代真实透明重绘、DPI、跨屏和应用兼容验收。当前验收记录见 [IMPLEMENTATION-STATUS.md](IMPLEMENTATION-STATUS.md)。
 
