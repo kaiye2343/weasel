@@ -1,0 +1,303 @@
+{
+  "schemaVersion": 1,
+  "scope": "candidate-size-occlusion",
+  "dpi": [
+    96,
+    144,
+    192
+  ],
+  "cases": [
+    {
+      "id": "mixed-original",
+      "annotationPosition": "above",
+      "emptyAnnotationMode": "collapse",
+      "style": {
+        "fontPoint": 16,
+        "commentFontPoint": 11,
+        "paddingLeft": 16,
+        "paddingRight": 192,
+        "paddingTop": 12,
+        "paddingBottom": 12,
+        "candidateSpacing": 18
+      },
+      "measurements": {
+        "textAdvance": 12,
+        "textHeight": 32,
+        "commentAdvance": 6,
+        "commentHeight": 18
+      },
+      "candidates": [
+        {
+          "comment": "he cheng jia",
+          "text": "合成甲"
+        },
+        {
+          "comment": "",
+          "text": "合成乙"
+        },
+        {
+          "comment": "bing",
+          "text": "丙"
+        }
+      ],
+      "layers": [
+        {
+          "y": -149,
+          "x": -176,
+          "width": 221,
+          "height": 184,
+          "anchor": "bottom_right"
+        },
+        {
+          "y": -41,
+          "x": -29,
+          "width": 60,
+          "height": 62,
+          "anchor": "top_left"
+        }
+      ]
+    },
+    {
+      "id": "mixed-compact",
+      "annotationPosition": "above",
+      "emptyAnnotationMode": "collapse",
+      "style": {
+        "fontPoint": 12,
+        "commentFontPoint": 10,
+        "paddingLeft": 8,
+        "paddingRight": 192,
+        "paddingTop": 4,
+        "paddingBottom": 4,
+        "candidateSpacing": 8
+      },
+      "measurements": {
+        "textAdvance": 9,
+        "textHeight": 24,
+        "commentAdvance": 6,
+        "commentHeight": 17
+      },
+      "candidates": [
+        {
+          "comment": "he cheng jia",
+          "text": "合成甲"
+        },
+        {
+          "comment": "",
+          "text": "合成乙"
+        },
+        {
+          "comment": "bing",
+          "text": "丙"
+        }
+      ],
+      "layers": [
+        {
+          "y": -149,
+          "x": -176,
+          "width": 221,
+          "height": 184,
+          "anchor": "bottom_right"
+        },
+        {
+          "y": -41,
+          "x": -29,
+          "width": 60,
+          "height": 62,
+          "anchor": "top_left"
+        }
+      ]
+    },
+    {
+      "id": "empty-original",
+      "annotationPosition": "above",
+      "emptyAnnotationMode": "collapse",
+      "style": {
+        "fontPoint": 16,
+        "commentFontPoint": 11,
+        "paddingLeft": 16,
+        "paddingRight": 192,
+        "paddingTop": 12,
+        "paddingBottom": 12,
+        "candidateSpacing": 18
+      },
+      "measurements": {
+        "textAdvance": 12,
+        "textHeight": 32,
+        "commentAdvance": 6,
+        "commentHeight": 18
+      },
+      "candidates": [
+        {
+          "comment": "",
+          "text": "合成甲"
+        },
+        {
+          "comment": "",
+          "text": "合成乙"
+        },
+        {
+          "comment": "",
+          "text": "丙"
+        }
+      ],
+      "layers": [
+        {
+          "y": -149,
+          "x": -176,
+          "width": 221,
+          "height": 184,
+          "anchor": "bottom_right"
+        },
+        {
+          "y": -41,
+          "x": -29,
+          "width": 60,
+          "height": 62,
+          "anchor": "top_left"
+        }
+      ]
+    },
+    {
+      "id": "empty-compact",
+      "annotationPosition": "above",
+      "emptyAnnotationMode": "collapse",
+      "style": {
+        "fontPoint": 12,
+        "commentFontPoint": 10,
+        "paddingLeft": 8,
+        "paddingRight": 192,
+        "paddingTop": 4,
+        "paddingBottom": 4,
+        "candidateSpacing": 8
+      },
+      "measurements": {
+        "textAdvance": 9,
+        "textHeight": 24,
+        "commentAdvance": 6,
+        "commentHeight": 17
+      },
+      "candidates": [
+        {
+          "comment": "",
+          "text": "合成甲"
+        },
+        {
+          "comment": "",
+          "text": "合成乙"
+        },
+        {
+          "comment": "",
+          "text": "丙"
+        }
+      ],
+      "layers": [
+        {
+          "y": -149,
+          "x": -176,
+          "width": 221,
+          "height": 184,
+          "anchor": "bottom_right"
+        },
+        {
+          "y": -41,
+          "x": -29,
+          "width": 60,
+          "height": 62,
+          "anchor": "top_left"
+        }
+      ]
+    },
+    {
+      "id": "long-original",
+      "annotationPosition": "above",
+      "emptyAnnotationMode": "collapse",
+      "style": {
+        "fontPoint": 16,
+        "commentFontPoint": 11,
+        "paddingLeft": 16,
+        "paddingRight": 192,
+        "paddingTop": 12,
+        "paddingBottom": 12,
+        "candidateSpacing": 18
+      },
+      "measurements": {
+        "textAdvance": 12,
+        "textHeight": 32,
+        "commentAdvance": 6,
+        "commentHeight": 18
+      },
+      "candidates": [
+        {
+          "comment": "",
+          "text": "这是一条隔离合成的较长候选"
+        },
+        {
+          "comment": "he cheng duan yu",
+          "text": "另一个合成短语"
+        }
+      ],
+      "layers": [
+        {
+          "y": -149,
+          "x": -176,
+          "width": 221,
+          "height": 184,
+          "anchor": "bottom_right"
+        },
+        {
+          "y": -41,
+          "x": -29,
+          "width": 60,
+          "height": 62,
+          "anchor": "top_left"
+        }
+      ]
+    },
+    {
+      "id": "long-compact",
+      "annotationPosition": "above",
+      "emptyAnnotationMode": "collapse",
+      "style": {
+        "fontPoint": 12,
+        "commentFontPoint": 10,
+        "paddingLeft": 8,
+        "paddingRight": 192,
+        "paddingTop": 4,
+        "paddingBottom": 4,
+        "candidateSpacing": 8
+      },
+      "measurements": {
+        "textAdvance": 9,
+        "textHeight": 24,
+        "commentAdvance": 6,
+        "commentHeight": 17
+      },
+      "candidates": [
+        {
+          "comment": "",
+          "text": "这是一条隔离合成的较长候选"
+        },
+        {
+          "comment": "he cheng duan yu",
+          "text": "另一个合成短语"
+        }
+      ],
+      "layers": [
+        {
+          "y": -149,
+          "x": -176,
+          "width": 221,
+          "height": 184,
+          "anchor": "bottom_right"
+        },
+        {
+          "y": -41,
+          "x": -29,
+          "width": 60,
+          "height": 62,
+          "anchor": "top_left"
+        }
+      ]
+    }
+  ]
+}

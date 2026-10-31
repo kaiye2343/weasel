@@ -39,8 +39,9 @@ inline bool Run(const std::filesystem::path& inputPath,
     std::ifstream stream(inputPath, std::ios::binary);
     const std::string bytes((std::istreambuf_iterator<char>(stream)), {});
     auto input = json::parse(bytes).as_object();
+    const bool sizeFacts = input.at("scope").as_string() == "candidate-size-occlusion";
     if (input.at("schemaVersion").as_int64() != 1 ||
-        input.at("scope").as_string() != "decoration-anchors" ||
+        (!sizeFacts && input.at("scope").as_string() != "decoration-anchors") ||
         input.at("cases").as_array().size() > 64)
       throw std::runtime_error("Unsupported isolated layout fixture");
     json::array results;
@@ -65,6 +66,21 @@ inline bool Run(const std::filesystem::path& inputPath,
         style.hilite_spacing = 2;
         style.hilite_padding_x = 4; style.hilite_padding_y = 3;
         style.skin_padding = {4, 4, 4, 4};
+        // Synthetic fixture parameters only; never read a user's active skin.
+        if (sizeFacts) {
+          const auto& spec = item.at("style").as_object();
+          auto number = [&spec](const char* key, int low, int high) {
+            const auto n = spec.at(key).as_int64();
+            if (n < low || n > high) throw std::runtime_error("Invalid size fixture style");
+            return static_cast<int>(n);
+          };
+          style.font_point = style.label_font_point = number("fontPoint", 8, 48);
+          style.comment_font_point = number("commentFontPoint", 8, 32);
+          style.margin_x = style.margin_y = 0;
+          style.skin_padding = {number("paddingLeft", 0, 256), number("paddingTop", 0, 256),
+              number("paddingRight", 0, 256), number("paddingBottom", 0, 256)};
+          style.candidate_spacing = number("candidateSpacing", 0, 256);
+        }
         style.comment_text_color = style.hilited_comment_text_color = static_cast<int>(0xff607d8bu);
         style.annotation_position = item.at("annotationPosition").as_string() == "above" ? 1 :
             item.at("annotationPosition").as_string() == "hidden" ? 2 : 0;
@@ -90,7 +106,8 @@ inline bool Run(const std::filesystem::path& inputPath,
           throw std::runtime_error("Native font resources unavailable");
         // Layout has no virtual destructor: retain the derived shared deleter.
         std::shared_ptr<weasel::HorizontalLayout> layout;
-        if (fixed) layout = std::make_shared<FixedLayout>(style, context, status, resources, input.at("measurements").as_object());
+        const auto& measurements = sizeFacts ? item.at("measurements").as_object() : input.at("measurements").as_object();
+        if (fixed) layout = std::make_shared<FixedLayout>(style, context, status, resources, measurements);
         else layout = std::make_shared<weasel::HorizontalLayout>(style, context, status, resources);
         layout->DoLayout(CDCHandle(memory), resources);
         json::array cells, separators;
@@ -114,13 +131,44 @@ inline bool Run(const std::filesystem::path& inputPath,
             {"draw", Rect(draw)}, {"hit", Rect(hit)}, {"windowHit", Rect(windowHit)}});
         }
         for (const auto& separator : layout->annotation_separators) separators.push_back(Rect(separator));
-        results.push_back(json::object{{"id", item.at("id")}, {"dpi", dpi},
+        json::object row{{"id", item.at("id")}, {"dpi", dpi},
           {"measurement", fixed ? "fixed" : "directwrite"}, {"size", json::array{size.cx, size.cy}},
           {"origin", json::array{q(20), q(10)}}, {"reorderY", q(7)},
-          {"padding", json::array{q(4), q(3)}}, {"cells", cells}, {"separators", separators}});
+          {"padding", json::array{q(4), q(3)}}, {"cells", cells}, {"separators", separators}};
+        if (sizeFacts) {
+          const CRect frame = layout->GetContentRect();
+          weasel::SkinRect bounds{0, 0, size.cx, size.cy};
+          json::array images;
+          if (item.at("layers").as_array().size() > 8) throw std::runtime_error("Too many fixture layers");
+          for (const auto& layerValue : item.at("layers").as_array()) {
+            const auto& layer = layerValue.as_object();
+            const auto anchor = layer.at("anchor").as_string();
+            auto scaled = [&](const char* key) {
+              const auto n = layer.at(key).as_int64();
+              if (n < -512 || n > 512) throw std::runtime_error("Invalid fixture layer");
+              return q(static_cast<int>(n));
+            };
+            const auto image = weasel::PlaceSkinImage({frame.left, frame.top, frame.right, frame.bottom},
+                anchor == "top_right" || anchor == "bottom_right",
+                anchor == "bottom_left" || anchor == "bottom_right",
+                scaled("x"), scaled("y"), scaled("width"), scaled("height"));
+            images.push_back(json::array{image.left, image.top, image.right, image.bottom});
+            bounds = weasel::ExpandSkinCanvas(bounds, image);
+          }
+          row["frame"] = Rect(frame);
+          row["images"] = images;
+          row["canvasBounds"] = json::array{bounds.left, bounds.top, bounds.right, bounds.bottom};
+          row["canvasOrigin"] = json::array{-bounds.left, -bounds.top};
+          row["canvasSize"] = json::array{bounds.right - bounds.left, bounds.bottom - bounds.top};
+          row["fontPoint"] = style.font_point;
+          row["commentFontPoint"] = style.comment_font_point;
+          row["fontEm"] = resources->pTextFormat->GetFontSize();
+          row["commentEm"] = resources->pCommentTextFormat->GetFontSize();
+        }
+        results.push_back(row);
       }
     }
-    json::object report{{"schemaVersion", 1}, {"scope", "native-text-facts"},
+    json::object report{{"schemaVersion", 1}, {"scope", sizeFacts ? "candidate-size-occlusion" : "native-text-facts"},
       {"coordinateSpace", "physical-pixels"}, {"font", "Microsoft YaHei UI"},
       {"input", input}, {"cases", results}};
     std::ofstream output(outputPath, std::ios::binary | std::ios::trunc);
