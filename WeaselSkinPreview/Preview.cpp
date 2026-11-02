@@ -348,7 +348,8 @@ static bool PreferenceTests() {
     if (!weasel::LoadCandidatePlacement(root / L"display.json", defaultPlacement, error) || defaultPlacement.preference != -2)
       throw std::runtime_error("Missing placement did not follow appearance");
     for (const auto& explicitMode : {std::pair<const char*, int>{"native", -1}, {"auto", 0}, {"below", 1}, {"above", 2}, {"default", -2}}) {
-      write(root / L"display.json", std::string("{\"schemaVersion\":2,\"candidatePlacement\":\"") + explicitMode.first + "\"}");
+      const auto document = std::string("{\"schemaVersion\":2,\"candidatePlacement\":\"") + explicitMode.first + "\"}";
+      write(root / L"display.json", document.c_str());
       if (!weasel::LoadCandidatePlacement(root / L"display.json", defaultPlacement, error) || defaultPlacement.preference != explicitMode.second)
         throw std::runtime_error("Explicit placement mode changed");
     }
