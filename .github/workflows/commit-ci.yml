@@ -104,6 +104,11 @@ jobs:
           if errorlevel 1 exit /b 1
           skin_geometry_test.exe
           if errorlevel 1 exit /b 1
+          cl /nologo /EHsc /O2 /W4 tests\skin_placement_benchmark.cpp /Fe:skin_placement_benchmark.exe
+          if errorlevel 1 exit /b 1
+          if not exist output\archives mkdir output\archives
+          skin_placement_benchmark.exe > output\archives\skin-placement-benchmark.csv
+          if errorlevel 1 exit /b 1
       - name: Prepare installer tools
         shell: pwsh
         run: |
@@ -263,6 +268,12 @@ jobs:
             if ($test.ExitCode -ne 0) { throw 'Native caret placement regression failed' }
             Copy-Item native-placement-test.log "output/archives/placement-$($sample[0]).log"
           }
+          $defaultPlacement = "$env:GITHUB_WORKSPACE/.tools/default-placement.json"
+          '{"schemaVersion":2,"candidatePlacement":"default"}' | Set-Content -LiteralPath $defaultPlacement -Encoding utf8
+          $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList @('--manifest', "$env:GITHUB_WORKSPACE/skins/shorekeeper/manifest.json", '--variant', 'plush', '--placement-test', 'true', '--display-preferences', $defaultPlacement) -WindowStyle Hidden -PassThru
+          if (!$test.WaitForExit(60000)) { $test.Kill(); throw 'Default decoration placement timed out' }
+          if ($test.ExitCode -ne 0) { throw 'Default decoration placement regression failed' }
+          Copy-Item native-placement-test.log output/archives/placement-default-decoration.log
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--layout-test' -WindowStyle Hidden -PassThru -Wait
           if ($test.ExitCode -ne 0) { throw "Native annotation/DPI layout tests failed: $($test.ExitCode)" }
           $test = Start-Process output/WeaselSkinPreview.exe -ArgumentList '--preferences-test' -WindowStyle Hidden -PassThru -Wait
