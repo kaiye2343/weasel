@@ -35,6 +35,11 @@ struct CandidateWindowPosition {
   int x, y;
   bool above, constrained;
 };
+// Resolve against the current style on every placement, so switching to a plain
+// skin immediately restores native positioning without rewriting preferences.
+inline int ResolveCandidatePlacement(int preference, bool hasDecorations) {
+  return preference == -2 ? (hasDecorations ? 0 : -1) : preference;
+}
 inline bool ShouldUpdateCandidateAnchor(SkinRect previous, SkinRect next, bool hasPrevious) {
   // Preserve the accepted source anchor across layout refreshes, not just the
   // MoveTo call that received a host's 1-2 pixel vertical jitter.

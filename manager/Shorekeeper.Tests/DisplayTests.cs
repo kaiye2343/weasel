@@ -11,7 +11,7 @@ static class DisplayTests
         check(!File.Exists(store.PathName), "reading defaults never creates display overrides");
         reject(() => store.Save(new() { FontPoint = 0 }), "invalid display font rejected");
         reject(() => store.Save(new() { Density = "unknown" }), "unknown density rejected");
-        check(defaults.CandidatePlacement == "native", "default candidate placement uses original native path");
+        check(defaults.CandidatePlacement == "default", "default placement follows decoration presence without forcing plain appearance");
         reject(() => store.Save(new() { CandidatePlacement = "screen" }), "unknown candidate placement rejected");
         reject(() => store.Save(new() { CandidateOffsetX = 257 }), "candidate offset bounded");
         reject(() => store.Save(new() { CandidateGap = -1 }), "negative candidate gap rejected");
@@ -23,13 +23,18 @@ static class DisplayTests
         check(previous.AnnotationPosition == "above" && previous.FontMode == "user" && previous.FontPoint == 18 && previous.CommentFontPoint == 11 && previous.Density == "compact" && previous.CandidatePlacement == "auto", "existing explicit V2 overrides keep their meaning");
         check(File.ReadAllText(store.PathName) == explicitOverrides, "reading explicit preferences never rewrites them");
         File.WriteAllText(store.PathName, "{\"schemaVersion\":2,\"annotationPosition\":\"beside\"}");
-        check(store.Read().FontMode == "skin" && store.Read().Density == "skin" && store.Read().CandidatePlacement == "native", "partial preferences leave omitted appearance settings inherited");
+        check(store.Read().FontMode == "skin" && store.Read().Density == "skin" && store.Read().CandidatePlacement == "default", "partial preferences leave omitted appearance settings inherited");
+        const string explicitNative = "{\"schemaVersion\":2,\"candidatePlacement\":\"native\"}";
+        File.WriteAllText(store.PathName, explicitNative);
+        check(store.Read().CandidatePlacement == "native" && File.ReadAllText(store.PathName) == explicitNative, "explicit native is distinct from missing placement and never rewritten");
+        await store.SaveAndApplyAsync(new() { CandidatePlacement = "default" }, () => Task.CompletedTask);
+        check(store.Read().CandidatePlacement == "default", "appearance-dependent placement round trips");
         string legacy = "{\"schemaVersion\":1,\"annotationPosition\":\"hidden\"}\n";
         File.WriteAllText(store.PathName, legacy);
         var migrated = store.Read();
         check(!migrated.AnnotationEnabled && migrated.FontMode == "skin" && migrated.Density == "skin", "legacy preferences preserve hidden and skin sizing");
         check(File.ReadAllText(store.PathName) == legacy, "reading legacy preferences never writes them");
-        check(migrated.CandidatePlacement == "native", "legacy preferences without placement retain native positioning");
+        check(migrated.CandidatePlacement == "default", "legacy omitted placement follows appearance while preserving explicit choices");
         try { await store.SaveAndApplyAsync(new(), () => throw new IOException("refresh rejected")); throw new Exception("Expected display failure"); } catch (IOException) { }
         check(File.ReadAllText(store.PathName) == legacy, "failed refresh restores exact legacy file");
         File.Delete(store.PathName);

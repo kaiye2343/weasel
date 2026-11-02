@@ -1749,7 +1749,8 @@ void WeaselPanel::_RepositionWindow(const bool& adj) {
   GetWindowRect(&rcWindow);
   int width = (rcWindow.right - rcWindow.left);
   int height = (rcWindow.bottom - rcWindow.top);
-  if (m_placement.preference != -1 && m_style.layout_type == UIStyle::LAYOUT_HORIZONTAL &&
+  const int placementPreference = ResolveCandidatePlacement(m_placement.preference, !m_style.skin_images.empty());
+  if (placementPreference != -1 && m_style.layout_type == UIStyle::LAYOUT_HORIZONTAL &&
       m_status.composing && m_candidateCount && !hide_candidates &&
       rcWorkArea.right > rcWorkArea.left && rcWorkArea.bottom > rcWorkArea.top) {
     if (!m_has_caret) return;
@@ -1764,7 +1765,7 @@ void WeaselPanel::_RepositionWindow(const bool& adj) {
         {rcWorkArea.left, rcWorkArea.top, rcWorkArea.right, rcWorkArea.bottom},
         width, height, {frame.left, frame.top, frame.right, frame.bottom}, images,
         DPI_SCALE(m_placement.offset_x), DPI_SCALE(m_placement.gap),
-        m_placement.preference, m_placement.avoid_decorations);
+        placementPreference, m_placement.avoid_decorations);
     m_istorepos = false;
     SetWindowPos(HWND_TOPMOST, placed.x, placed.y, 0, 0,
                  SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOREDRAW);

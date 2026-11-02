@@ -335,16 +335,23 @@ static bool PreferenceTests() {
     if (!weasel::LoadActiveSkin(style, error) || style != baseStyle)
       throw std::runtime_error("Missing preferences override base style: " + error);
     weasel::CandidatePlacement defaultPlacement;
-    if (!weasel::LoadCandidatePlacement(root / L"display.json", defaultPlacement, error) || defaultPlacement.preference != -1)
-      throw std::runtime_error("Missing preferences did not keep native positioning");
+    if (!weasel::LoadCandidatePlacement(root / L"display.json", defaultPlacement, error) || defaultPlacement.preference != -2 ||
+        weasel::ResolveCandidatePlacement(defaultPlacement.preference, false) != -1 ||
+        weasel::ResolveCandidatePlacement(defaultPlacement.preference, true) != 0)
+      throw std::runtime_error("Missing preferences did not resolve by decoration presence");
     write(root / L"display.json", R"({"schemaVersion":2})");
     if (!weasel::LoadActiveSkin(style, error) || style != baseStyle)
       throw std::runtime_error("Empty preferences override base style: " + error);
     write(root / L"display.json", R"({"schemaVersion":2,"annotationPosition":"beside"})");
     if (!weasel::LoadActiveSkin(style, error) || style != baseStyle)
       throw std::runtime_error("Partial preferences override unrelated base style: " + error);
-    if (!weasel::LoadCandidatePlacement(root / L"display.json", defaultPlacement, error) || defaultPlacement.preference != -1)
-      throw std::runtime_error("Missing placement did not keep native positioning");
+    if (!weasel::LoadCandidatePlacement(root / L"display.json", defaultPlacement, error) || defaultPlacement.preference != -2)
+      throw std::runtime_error("Missing placement did not follow appearance");
+    for (const auto& explicitMode : {std::pair<const char*, int>{"native", -1}, {"auto", 0}, {"below", 1}, {"above", 2}, {"default", -2}}) {
+      write(root / L"display.json", std::string("{\"schemaVersion\":2,\"candidatePlacement\":\"") + explicitMode.first + "\"}");
+      if (!weasel::LoadCandidatePlacement(root / L"display.json", defaultPlacement, error) || defaultPlacement.preference != explicitMode.second)
+        throw std::runtime_error("Explicit placement mode changed");
+    }
     write(root / L"display.json", R"({"schemaVersion":1,"annotationPosition":"above"})");
     if (!weasel::LoadActiveSkin(style, error) || style.annotation_position != 1) throw std::runtime_error("No-skin preference failed: " + error);
     auto skin = root / L"skins" / L"neutral" / L"1.0.0"; std::filesystem::create_directories(skin);

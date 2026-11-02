@@ -243,9 +243,9 @@ bool LoadCandidatePlacement(const std::filesystem::path& path,
     CandidatePlacement next;
     next.offset_x = Number(data, "candidateOffsetX", 0, -256, 256);
     next.gap = Number(data, "candidateGap", 6, 0, 128);
-    auto position = data.if_contains("candidatePlacement") ? String(data, "candidatePlacement") : "native";
-    if (position != "native" && position != "auto" && position != "below" && position != "above") throw std::runtime_error("Unknown candidate placement");
-    next.preference = position == "native" ? -1 : position == "above" ? 2 : position == "below" ? 1 : 0;
+    auto position = data.if_contains("candidatePlacement") ? String(data, "candidatePlacement") : "default";
+    if (position != "default" && position != "native" && position != "auto" && position != "below" && position != "above") throw std::runtime_error("Unknown candidate placement");
+    next.preference = position == "default" ? -2 : position == "native" ? -1 : position == "above" ? 2 : position == "below" ? 1 : 0;
     next.avoid_decorations = data.if_contains("avoidDecorations") ? data.at("avoidDecorations").as_bool() : true;
     placement = next; error.clear(); return true;
   } catch (const std::exception& ex) { error = ex.what(); return false; }

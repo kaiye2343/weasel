@@ -15,9 +15,9 @@ public sealed class DisplaySettingsPanel : StackPanel
     readonly CheckBox followFont = new() { Content = "跟随原配置／皮肤字号" };
     readonly TextBox font = Elements.Editor(), comment = Elements.Editor();
     readonly ComboBox density = new() { ItemsSource = new[] { "紧凑", "标准", "跟随原配置／皮肤" } };
-    readonly ComboBox placement = new() { ItemsSource = new[] { "小狼毫原有定位", "自动避让（优先下方）", "优先下方", "优先上方" } };
+    readonly ComboBox placement = new() { ItemsSource = new[] { "跟随外观（图片装饰自动避让）", "小狼毫原有定位", "自动避让（优先下方）", "优先下方", "优先上方" } };
     readonly TextBox offsetX = Elements.Editor(), gap = Elements.Editor();
-    readonly CheckBox avoid = new() { Content = "图片装饰也避让正在输入的文字" };
+    readonly CheckBox avoid = new() { Content = "图片装饰避让应用提供的输入位置" };
     string initial = "";
     byte[]? original;
     public DisplaySettingsPanel(ManagerContext context)
@@ -34,7 +34,7 @@ public sealed class DisplaySettingsPanel : StackPanel
         AddEditor("水平偏移（−256～256，正数向右）", offsetX);
         AddEditor("与输入行的最小间距（0～128）", gap);
         Children.Add(avoid);
-        Children.Add(Elements.Text("选择小狼毫原有定位时，偏移、间距和图片避让不参与定位。其他模式单位为 96 DPI 逻辑像素，仅作用于原生横排候选窗；屏幕边缘会限制偏移。", 12, true));
+        Children.Add(Elements.Text("默认有图片装饰时自动避让，无装饰时沿用原版定位。明确选择小狼毫原有定位时，偏移、间距和图片避让不参与定位。单位为 96 DPI 逻辑像素，仅作用于原生横排候选窗；空间不足或应用只提供光标范围时，不能保证整行文字不被遮挡。", 12, true));
         Children.Add(Elements.Button("预览位置（使用未保存参数）", async () => await context.Run(this, async () =>
         {
             var selected = context.Skins.Selection();
@@ -59,14 +59,14 @@ public sealed class DisplaySettingsPanel : StackPanel
     }
     void AddEditor(string label, Control editor) { Children.Add(Elements.Text(label, 14)); Children.Add(editor); }
     void Changed() { UpdateControls(); context.MarkChanged(); }
-    void UpdateControls() { position.IsEnabled = empty.IsEnabled = enabled.IsChecked == true; font.IsEnabled = comment.IsEnabled = followFont.IsChecked != true; offsetX.IsEnabled = gap.IsEnabled = avoid.IsEnabled = placement.SelectedIndex > 0; }
+    void UpdateControls() { position.IsEnabled = empty.IsEnabled = enabled.IsChecked == true; font.IsEnabled = comment.IsEnabled = followFont.IsChecked != true; offsetX.IsEnabled = gap.IsEnabled = avoid.IsEnabled = placement.SelectedIndex >= 0 && placement.SelectedIndex != 1; }
     void Set(DisplayPreferences value)
     {
         enabled.IsChecked = value.AnnotationEnabled; position.SelectedIndex = Array.IndexOf(new[] { "above", "beside", "skin" }, value.AnnotationPosition);
         empty.SelectedIndex = value.EmptyAnnotationMode == "collapse" ? 0 : 1; followFont.IsChecked = value.FontMode == "skin";
         font.Text = value.FontPoint.ToString(); comment.Text = value.CommentFontPoint.ToString();
         density.SelectedIndex = Array.IndexOf(new[] { "compact", "standard", "skin" }, value.Density); UpdateControls();
-        placement.SelectedIndex = Array.IndexOf(new[] { "native", "auto", "below", "above" }, value.CandidatePlacement);
+        placement.SelectedIndex = Array.IndexOf(new[] { "default", "native", "auto", "below", "above" }, value.CandidatePlacement);
         offsetX.Text = value.CandidateOffsetX.ToString(); gap.Text = value.CandidateGap.ToString(); avoid.IsChecked = value.AvoidDecorations;
         UpdateControls();
     }
@@ -77,7 +77,7 @@ public sealed class DisplaySettingsPanel : StackPanel
         return new() { AnnotationEnabled = enabled.IsChecked == true, AnnotationPosition = new[] { "above", "beside", "skin" }[position.SelectedIndex],
             EmptyAnnotationMode = empty.SelectedIndex == 0 ? "collapse" : "reserve", FontMode = followFont.IsChecked == true ? "skin" : "user",
             FontPoint = points, CommentFontPoint = comments, Density = new[] { "compact", "standard", "skin" }[density.SelectedIndex],
-            CandidatePlacement = new[] { "native", "auto", "below", "above" }[placement.SelectedIndex], CandidateOffsetX = horizontal,
+            CandidatePlacement = new[] { "default", "native", "auto", "below", "above" }[placement.SelectedIndex], CandidateOffsetX = horizontal,
             CandidateGap = distance, AvoidDecorations = avoid.IsChecked == true };
     }
     void Remember() { initial = JsonSerializer.Serialize(Edited()); original = File.Exists(store.PathName) ? File.ReadAllBytes(store.PathName) : null; }

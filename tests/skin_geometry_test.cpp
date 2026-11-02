@@ -3,6 +3,12 @@
 
 int main() {
   using namespace weasel;
+  assert(ResolveCandidatePlacement(-2, false) == -1);
+  assert(ResolveCandidatePlacement(-2, true) == 0);
+  for (int explicitMode : {-1, 0, 1, 2}) {
+    assert(ResolveCandidatePlacement(explicitMode, false) == explicitMode);
+    assert(ResolveCandidatePlacement(explicitMode, true) == explicitMode);
+  }
   SkinRect base{0, 0, 500, 70};
   const auto wing = PlaceSkinImage(500, 70, false, false, -12, -40, 64, 64);
   const auto character =
